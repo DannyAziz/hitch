@@ -1,0 +1,15 @@
+{
+  "name": "hitch-installer",
+  "version": "0.10.2",
+  "private": true,
+  "type": "module",
+  "description": "Build-time sources for bin/hitch.mjs (the hitch installer). Not shipped.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@clack/prompts": "0.11.0",
+    "esbuild": "0.25.0",
+    "picocolors": "1.1.1"
+  }
+}

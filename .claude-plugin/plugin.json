@@ -1,0 +1,319 @@
+{
+  "name": "hitch",
+  "version": "0.10.2",
+  "description": "Other agent harnesses (Codex, Cursor, Amp, pi, Devin) as native Claude Code subagents: they show in the agent list, stop, notify and take follow-ups like any subagent, and no Claude request is made for their work.",
+  "license": "MIT",
+  "author": {
+    "name": "Danny Aziz"
+  },
+  "userConfig": {
+    "codexEnabled": {
+      "type": "boolean",
+      "title": "Codex enabled",
+      "description": "Off leaves hitch:codex unregistered as an agent type.",
+      "default": true
+    },
+    "codexPath": {
+      "type": "string",
+      "title": "Codex executable path",
+      "description": "Absolute path to the Codex CLI (~ allowed). Empty: look on PATH, then in a login shell for desktop app sessions.",
+      "default": ""
+    },
+    "codexModel": {
+      "type": "string",
+      "title": "Codex model",
+      "description": "The model hitch:codex runs (codex exec -m). Always passed: the Agent tool's model parameter only takes Claude aliases.",
+      "default": "gpt-6-astra"
+    },
+    "codexSandbox": {
+      "type": "string",
+      "title": "Codex sandbox",
+      "description": "Deprecated for one release: use codexAccess. Only non-default legacy values override follow.",
+      "default": "workspace-write",
+      "options": [
+        "workspace-write",
+        "read-only"
+      ]
+    },
+    "codexIdleTimeoutSec": {
+      "type": "number",
+      "title": "Codex idle timeout (seconds)",
+      "description": "If Codex writes nothing for this long while it waits on its model (no command running), it is stopped and the turn ends with a failure that says the thread can be continued with SendMessage.",
+      "default": 300
+    },
+    "codexCommandTimeoutSec": {
+      "type": "number",
+      "title": "Codex command timeout (seconds)",
+      "description": "The longest a single command or tool Codex runs may take before Codex is stopped. The idle timeout does not count while a command runs.",
+      "default": 3600
+    },
+    "cursorEnabled": {
+      "type": "boolean",
+      "title": "Cursor enabled",
+      "description": "Off leaves hitch:cursor unregistered as an agent type.",
+      "default": true
+    },
+    "cursorPath": {
+      "type": "string",
+      "title": "Cursor executable path",
+      "description": "Absolute path to the Cursor CLI (~ allowed). Empty: look on PATH, then in a login shell for desktop app sessions.",
+      "default": ""
+    },
+    "cursorModel": {
+      "type": "string",
+      "title": "Cursor model",
+      "description": "The model hitch:cursor runs (agent --model). Always passed: the Agent tool's model parameter only takes Claude aliases. Cursor encodes effort in model names, so the call's effort is not mapped.",
+      "default": "auto"
+    },
+    "cursorSandbox": {
+      "type": "string",
+      "title": "Cursor sandbox",
+      "description": "Deprecated for one release: use cursorAccess. Only non-default legacy values override follow.",
+      "default": "workspace-write",
+      "options": [
+        "workspace-write",
+        "read-only"
+      ]
+    },
+    "cursorIdleTimeoutSec": {
+      "type": "number",
+      "title": "Cursor idle timeout (seconds)",
+      "description": "If Cursor writes nothing for this long while it waits on its model (no command running), it is stopped and the turn ends with a failure that says the session can be continued with SendMessage.",
+      "default": 300
+    },
+    "cursorCommandTimeoutSec": {
+      "type": "number",
+      "title": "Cursor command timeout (seconds)",
+      "description": "The longest a single command or tool Cursor runs may take before Cursor is stopped. The idle timeout does not count while a command runs.",
+      "default": 3600
+    },
+    "piEnabled": {
+      "type": "boolean",
+      "title": "pi enabled",
+      "description": "Off leaves hitch:pi unregistered as an agent type.",
+      "default": true
+    },
+    "piPath": {
+      "type": "string",
+      "title": "pi executable path",
+      "description": "Absolute path to the pi CLI (~ allowed). Empty: look on PATH, then in a login shell for desktop app sessions.",
+      "default": ""
+    },
+    "piModel": {
+      "type": "string",
+      "title": "pi model",
+      "description": "The provider/model pi runs, split at the first slash into --provider and --model. The Agent model parameter does not apply.",
+      "default": "openrouter/~deepseek/deepseek-flash-latest"
+    },
+    "piSandbox": {
+      "type": "string",
+      "title": "pi sandbox",
+      "description": "Deprecated for one release: use piAccess. Only non-default legacy values override follow.",
+      "default": "workspace-write",
+      "options": [
+        "workspace-write",
+        "read-only"
+      ]
+    },
+    "piIdleTimeoutSec": {
+      "type": "number",
+      "title": "pi idle timeout (seconds)",
+      "description": "If pi writes nothing for this long while it waits on its model (no command running), it is stopped and the turn ends with a failure that says the thread can be continued with SendMessage.",
+      "default": 300
+    },
+    "piCommandTimeoutSec": {
+      "type": "number",
+      "title": "pi command timeout (seconds)",
+      "description": "The longest a single command or tool pi runs may take before pi is stopped. The idle timeout does not count while a command runs.",
+      "default": 3600
+    },
+    "ampEnabled": {
+      "type": "boolean",
+      "title": "Amp enabled",
+      "description": "Off leaves hitch:amp unregistered as an agent type.",
+      "default": true
+    },
+    "ampPath": {
+      "type": "string",
+      "title": "Amp executable path",
+      "description": "Absolute path to the Amp CLI (~ allowed). Empty: look on PATH, then in a login shell for desktop app sessions.",
+      "default": ""
+    },
+    "ampModel": {
+      "type": "string",
+      "title": "Amp agent mode",
+      "description": "The Amp agent mode (amp -m), not a model name. Agent effort overrides this mode; xhigh and max select ultra.",
+      "default": "medium",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "ultra"
+      ]
+    },
+    "ampIdleTimeoutSec": {
+      "type": "number",
+      "title": "Amp idle timeout (seconds)",
+      "description": "If Amp writes nothing for this long while it waits on its model (no command running), it is stopped and the turn ends with a failure that says the thread can be continued with SendMessage.",
+      "default": 300
+    },
+    "ampCommandTimeoutSec": {
+      "type": "number",
+      "title": "Amp command timeout (seconds)",
+      "description": "The longest a single command or tool Amp runs may take before Amp is stopped. The idle timeout does not count while a command runs.",
+      "default": 3600
+    },
+    "devinEnabled": {
+      "type": "boolean",
+      "title": "Devin enabled",
+      "description": "Off leaves hitch:devin unregistered as an agent type.",
+      "default": true
+    },
+    "devinPath": {
+      "type": "string",
+      "title": "Devin executable path",
+      "description": "Absolute path to the Devin CLI (~ allowed). Empty: look on PATH, then in a login shell for desktop app sessions.",
+      "default": ""
+    },
+    "devinModel": {
+      "type": "string",
+      "title": "Devin model",
+      "description": "The model hitch:devin runs (devin --model). Always passed: the Agent tool's model parameter only takes Claude aliases. The free swe-2(-flash)-(medium|high|max) names take the call's effort as their suffix.",
+      "default": "swe-2-flash-high"
+    },
+    "devinSandbox": {
+      "type": "string",
+      "title": "Devin sandbox",
+      "description": "Deprecated for one release: use devinAccess. Only non-default legacy values override follow.",
+      "default": "workspace-write",
+      "options": [
+        "workspace-write",
+        "read-only"
+      ]
+    },
+    "devinIdleTimeoutSec": {
+      "type": "number",
+      "title": "Devin idle timeout (seconds)",
+      "description": "If Devin sends nothing for this long while it waits on its model (no tool running), it is stopped and the turn ends with a failure that says the session can be continued with SendMessage.",
+      "default": 600
+    },
+    "devinCommandTimeoutSec": {
+      "type": "number",
+      "title": "Devin command timeout (seconds)",
+      "description": "The longest a single command or tool Devin runs may take before Devin is stopped.",
+      "default": 3600
+    },
+    "devinTransport": {
+      "type": "string",
+      "title": "Devin transport",
+      "description": "acp: drive `devin acp` (messages, a HitchLog row per tool call and permission, follow-ups continue the session). cli-text: the older `devin -p` print mode (plain text, no rows, no follow-ups).",
+      "default": "acp",
+      "options": [
+        "acp",
+        "cli-text"
+      ]
+    },
+    "hideRowTool": {
+      "type": "boolean",
+      "title": "Hide the row tool from other agents",
+      "description": "On by default: hitch registers two hooks that keep its display-only HitchLog tool out of other agents' tool lists. Where Claude Code's managed security mod (sec-default) runs first, those hooks never run and Claude Code prints two \"hook was skipped\" lines per session; turn this off there to drop the lines. Nothing else changes on such a machine.",
+      "default": true
+    },
+    "stampHarnessModel": {
+      "type": "boolean",
+      "title": "Stamp the harness model on steps",
+      "description": "Experimental. Each step reports all-zero usage naming the harness model (codex/<model>) instead of no usage, so transcript rows may name it in place of the placeholder Claude model.",
+      "default": false
+    },
+    "delegationLog": {
+      "type": "string",
+      "title": "Delegation log",
+      "description": "A JSON line per finished harness turn (no prompt or report text) is appended here; ~/ is your home folder. /hitch log summarizes it.",
+      "default": "~/.claude/hitch/delegations.jsonl"
+    },
+    "reviewer": {
+      "type": "string",
+      "title": "Reviewer harness",
+      "description": "A harness key (codex, cursor, amp, pi or devin) whose agent description then says it is the user's chosen harness for second opinions and reviews. Empty, off or unknown: no reviewer.",
+      "default": ""
+    },
+    "builder": {
+      "type": "string",
+      "title": "Builder harness",
+      "description": "A harness key (codex, cursor, amp, pi or devin) whose agent description then says it is the user's chosen harness for well-specified builds. Empty, off or unknown: no builder.",
+      "default": ""
+    },
+    "eagerness": {
+      "type": "string",
+      "title": "Delegation eagerness",
+      "description": "How eagerly Claude hands work to a harness, stated in every agent description: ask-only (default), rubric, or eager.",
+      "default": "ask-only",
+      "options": [
+        "ask-only",
+        "rubric",
+        "eager"
+      ]
+    },
+    "codexAccess": {
+      "type": "string",
+      "title": "codex access",
+      "description": "follow: respect session mode and permissions. Explicit supported levels are standing consent; plan always requires read-only.",
+      "default": "follow",
+      "options": [
+        "follow",
+        "read-only",
+        "workspace-write",
+        "full"
+      ]
+    },
+    "cursorAccess": {
+      "type": "string",
+      "title": "cursor access",
+      "description": "follow: respect session mode and permissions. Explicit supported levels are standing consent; plan always requires read-only.",
+      "default": "follow",
+      "options": [
+        "follow",
+        "read-only",
+        "workspace-write",
+        "full"
+      ]
+    },
+    "ampAccess": {
+      "type": "string",
+      "title": "amp access",
+      "description": "follow: respect session mode and permissions. Explicit supported levels are standing consent; plan always requires read-only.",
+      "default": "follow",
+      "options": [
+        "follow",
+        "read-only",
+        "workspace-write",
+        "full"
+      ]
+    },
+    "piAccess": {
+      "type": "string",
+      "title": "pi access",
+      "description": "follow: respect session mode and permissions. Explicit supported levels are standing consent; plan always requires read-only.",
+      "default": "follow",
+      "options": [
+        "follow",
+        "read-only",
+        "workspace-write",
+        "full"
+      ]
+    },
+    "devinAccess": {
+      "type": "string",
+      "title": "devin access",
+      "description": "follow: respect session mode and permissions. Explicit supported levels are standing consent; plan always requires read-only.",
+      "default": "follow",
+      "options": [
+        "follow",
+        "read-only",
+        "workspace-write",
+        "full"
+      ]
+    }
+  },
+  "types": "./hooks/types.d.ts"
+}

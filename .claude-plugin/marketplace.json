@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "hitch",
+  "description": "hitch: other agent harnesses as native Claude Code subagents.",
+  "owner": {
+    "name": "Danny Aziz"
+  },
+  "plugins": [
+    {
+      "name": "hitch",
+      "description": "Other agent harnesses (Codex, Cursor, Amp, pi, Devin) as native Claude Code subagents.",
+      "source": "./"
+    }
+  ]
+}
