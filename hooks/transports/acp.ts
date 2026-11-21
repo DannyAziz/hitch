@@ -194,7 +194,13 @@ function onUpdate(st: AcpState, u: Json, out: AcpOutput) {
       t.input += Number(m['cognition.ai/inputTokens'] ?? 0)
       t.output += Number(m['cognition.ai/outputTokens'] ?? 0)
       t.cached += Number(m['cognition.ai/cachedReadTokens'] ?? 0)
-      out.events.push({ usage: { ...t } })
+      // The update also carries the context window's fill after this
+      // request: `used` tokens of `size` (when the server reports it).
+      const context =
+        typeof u.used === 'number'
+          ? { used: u.used, ...(typeof u.size === 'number' && { size: u.size }) }
+          : undefined
+      out.events.push({ usage: { ...t }, ...(context && { context }) })
       return
     }
     case 'plan': {

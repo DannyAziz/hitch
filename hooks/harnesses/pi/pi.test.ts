@@ -35,6 +35,19 @@ test('pi recorded first run gives two actions, actual results, one closing messa
   expect(follow.filter(e => e.usage).at(-1)?.usage).toEqual({ input: 6299, cached: 5888, output: 4 })
 })
 
+test('pi context is the latest assistant message\'s own counts, not the sum', () => {
+  const memo = {}
+  const events = FIRST.map(line => parsePi(line, memo))
+  expect(events.filter(e => e.context).map(e => e.context)).toEqual([
+    { used: 6188 }, // 6132 + 0 + 0 + 56
+    { used: 6262 }, // 573 + 5632 + 0 + 57
+    { used: 6278 }, // 387 + 5888 + 0 + 3
+  ])
+  const followMemo = {}
+  const follow = FOLLOW_UP.map(line => parsePi(line, followMemo))
+  expect(follow.filter(e => e.context).map(e => e.context)).toEqual([{ used: 6303 }]) // 411 + 5888 + 0 + 4
+})
+
 test('pi surfaces the recorded failure despite a zero process exit, from either end event', () => {
   const memo = {}
   const events = ERROR.map(line => parsePi(line, memo))
@@ -61,7 +74,7 @@ test('pi launcher supplies empty stdin, configured options and the agent cwd', {
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   w.agents.push(agentInfo(AGENT, 'hitch:pi', { effort: 'high', cwd: '/repo/worktree' }))
   await $.turn.start({ text: 'Which file?', turnId: 't1', agentId: AGENT })
-  expect((await drain($.turn.step(step()))).result.answer).toBe('notes.txt')
+  expect((await drain($.turn.step(step()))).result.answer).toBe('notes.txt\n\n[hitch] pi context: 6.3k tokens.')
   expect(harnessArgv(w.launches[0])).toEqual(['/mock/bin/pi', ...base.slice(1), '--thinking', 'high', '--tools', 'read,grep,find,ls', 'Which file?'])
   expect(w.launches[0]?.cwd).toBe('/repo/worktree')
   expect(w.launches[0]?.argv[4]).toBe('file')

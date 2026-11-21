@@ -27,6 +27,13 @@ export const ROW_TOOL = 'HitchLog'
 export const formatTokens = (n: number) =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 
+// The one line a finished turn adds to its report when the harness
+// reports its context fullness.
+export const contextNote = (label: string, c: { used: number; size?: number }) =>
+  `[hitch] ${label} context: ${formatTokens(c.used)}${
+    c.size ? ` of ${formatTokens(c.size)} tokens (${Math.round((c.used / c.size) * 100)}% full)` : ' tokens'
+  }.`
+
 const positive = (v: unknown, fallback: number) => {
   const n = Number(v)
   return Number.isFinite(n) && n > 0 ? n : fallback

@@ -110,6 +110,7 @@ npm run build
 Ask Claude to hand a task to Codex, Cursor, Amp, pi, or Devin, or ask for the agent type by name. The bundled skill `hitch:harness-delegation` gives Claude a rubric: when to hand work off, which harness to pick, how to write a self-contained brief, and how to check what comes back.
 
 - **SendMessage** to a hitch agent continues the harness's own conversation (Codex's or Amp's thread, Cursor's, pi's or Devin's session).
+- **Context fullness.** Devin reports how full its context window is, and Amp and pi report the tokens in their latest request. hitch shows it on the agent row (`ctx 60%`, or `ctx 157k` without a window size) and ends each answer with a line such as `[hitch] Devin context: 157k of 262k tokens (60% full).`, so Claude can choose between continuing an agent and starting a fresh one. Codex and Cursor report only per-turn totals and get no context line.
 - **Stop:** stopping the agent (the agent list, Esc, or TaskStop) stops the harness and every process it started.
 - **`/hitch`** lists hitch agents. For each it shows the harness session, turns and tokens, and the engine's own count of Claude usage for that agent, which should say "no requests".
 - **`/hitch log`** summarizes the delegation log.

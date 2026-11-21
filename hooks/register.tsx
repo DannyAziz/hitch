@@ -240,7 +240,11 @@ export const register: Register = (on, options) => {
     if (!a) return next(e)
     const st = agents.get(e.props.id)
     const parts = [`${a.label} ${st?.run?.model ?? st?.model ?? settings(a).model}`]
-    if (st?.tokens) parts.push(`${formatTokens(st.tokens)} tok`)
+    // Context fullness where the harness reports it (this turn's while it
+    // runs, the last reported after); st.tokens stays for /hitch.
+    const ctx = st?.run?.context ?? st?.context
+    if (ctx?.size) parts.push(`ctx ${Math.round((ctx.used / ctx.size) * 100)}%`)
+    else if (ctx) parts.push(`ctx ${formatTokens(ctx.used)}`)
     if (st?.run) parts.push(ago(Date.now() - st.run.startedAt))
     if (st?.run && (st.run.inFlight || Date.now() - st.run.lastOutputAt > 4000)) {
       parts.push(runState(st.run, Date.now()))

@@ -6,6 +6,8 @@ import { expect, test } from 'claude-code/testing'
 import type { TurnStepChunk, TurnStepResult } from 'claude-code'
 
 import { AGENT, type World, answerRow, agentInfo, drain, harnessArgv, spawnInput, step, world } from '../../../tests/world'
+import { acpHandle, acpOpen } from '../../transports/acp'
+import { devin } from './index'
 import { FIRST, FOLLOW_UP, SESSION, fixture } from './fixture'
 
 const TEXT = { options: { devinTransport: 'cli-text' } }
@@ -106,6 +108,16 @@ test('cli-text: a SendMessage follow-up is refused: it cannot be continued', TEX
 
 // ---------------------------------------------------------------- Devin over ACP (the default)
 
+test('ACP usage_update reports the context fill (used of size) from the untagged copy only', () => {
+  const spec = devin.transports.acp!
+  const st = acpOpen({ cwd: '/work', prompt: 'p', mode: spec.mode?.('workspace-write') }).state
+  const events = FIRST.flatMap(line => acpHandle(st, line, spec).events)
+  expect(events.filter(e => e.context).map(e => e.context)).toEqual([
+    { used: 15078, size: 262144 },
+    { used: 15283, size: 262144 },
+    { used: 15309, size: 262144 },
+  ])
+})
 
 async function devinTurn($: any, w: World, turnId: string, text: string) {
   await $.turn.start({ text, turnId, agentId: AGENT })
@@ -145,7 +157,7 @@ test('ACP: a Devin turn from the recorded server output: rows for the edit, the 
   // The permission request was answered with allow_once (never an "always").
   const answer = w.inWrites.find(m => m.id !== undefined && m.result?.outcome)
   expect(answer.result.outcome).toEqual({ outcome: 'selected', optionId: 'allow_once' })
-  expect(steps[3]!.result.answer).toBe('done')
+  expect(steps[3]!.result.answer).toBe('done\n\n[hitch] Devin context: 15.3k of 262.1k tokens (6% full).')
   // The server is stopped once its prompt is answered; the session is kept.
   expect(w.runs).toContainEqual(['kill', '-TERM', '4242'])
   const saved = w.store.get(`hitch:agent:${AGENT}`) as any
@@ -181,7 +193,7 @@ test('ACP: a SendMessage follow-up loads the same Devin session; the replayed hi
   expect(load.params.sessionId).toBe(SESSION)
   expect(w.inWrites.some(m => m.method === 'session/new')).toBe(false)
   expect(steps.length).toBe(1)
-  expect(steps[0]!.result.answer).toBe('notes.txt')
+  expect(steps[0]!.result.answer).toBe('notes.txt\n\n[hitch] Devin context: 15.3k of 262.1k tokens (6% full).')
   expect(w.sent).toEqual([])
 })
 

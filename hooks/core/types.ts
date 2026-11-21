@@ -45,6 +45,9 @@ export type HarnessEvent = {
   action?: HarnessAction
   // Token usage of the turn so far (replaces earlier values).
   usage?: Usage
+  // How full the harness's context window is after its latest model
+  // request (replaces earlier values); `size` when the window is known.
+  context?: { used: number; size?: number }
   // The harness's conversation id, to resume it.
   sessionId?: string
   error?: string

@@ -4,7 +4,7 @@ import { chooseAccess, permitAction } from './access'
 import { type AcpState, acpCancel, acpHandle, acpOpen, acpPermission } from '../transports/acp'
 import { jsonlEvents, jsonlInvocation } from '../transports/cli-jsonl'
 import { type Outcome, recordDelegation } from './delegations'
-import { ROW_TOOL, type Settings, formatTokens, typeOf } from './harness'
+import { ROW_TOOL, type Settings, contextNote, formatTokens, typeOf } from './harness'
 import { forgetExecutable, resolveExecutable } from './resolve'
 import { type ActiveRun, type AgentState, HANDBACK, keepRow, save } from './state'
 import { appendArgv, launchArgv, readerArgv, readerSignal } from './supervise'
@@ -344,6 +344,7 @@ async function* readStep(
         await save($, st)
       }
       if (ev.usage) run.usage = ev.usage
+      if (ev.context) run.context = ev.context
       if (ev.error) errors.push(ev.error)
       if (ev.thought) yield thinking(ev.thought)
       if (ev.line) {
@@ -574,12 +575,24 @@ async function* readStep(
       if (last) failure += `\n${last}`
     }
   }
+  // How full the harness's context window is, when it says: one line on
+  // the report, so a SendMessage follow-up shows it too. `run.context` is
+  // this turn's latest; `st.context` the last one a turn reported.
+  const ctx = run.context ?? st.context
+  const ctxNote = !failure && ctx ? contextNote(a.label, ctx) : undefined
+  if (ctxNote) answer = answer ? `${answer}\n\n${ctxNote}` : ctxNote
+
   if (failure) {
     yield { kind: 'text', index: blocks.at('text'), text: `${messages.length || plain.length ? '\n\n' : ''}${failure}` }
     answer = answer ? `${answer}\n\n${failure}` : failure
   } else if (run.transport === 'cli-text' && answer) {
     // Plain text: the whole stdout is the report, as one text block.
     yield { kind: 'text', index: blocks.at('text'), text: answer }
+  }
+  // Streamed transports already yielded the report's text: the context
+  // line goes as one more text block (cli-text's is inside `answer`).
+  if (ctxNote && run.transport !== 'cli-text') {
+    yield { kind: 'text', index: blocks.at('text'), text: `\n\n${ctxNote}` }
   }
 
   st.lastAnswer = answer
@@ -632,6 +645,9 @@ async function finish(
   outcome: Outcome,
   exit: string,
 ) {
+  // A turn that reported context fullness keeps it on the agent; one that
+  // didn't leaves the previous value.
+  if (run.context) st.context = run.context
   await save($, st)
   const code = /^code (-?\d+)$/.exec(exit)
   await recordDelegation($, settings.delegationLog, {

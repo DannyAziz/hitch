@@ -1,6 +1,6 @@
 {
   "name": "hitch",
-  "version": "0.10.2",
+  "version": "0.11.0",
   "description": "Other agent harnesses (Codex, Cursor, Amp, pi, Devin) as native Claude Code subagents: they show in the agent list, stop, notify and take follow-ups like any subagent, and no Claude request is made for their work.",
   "license": "MIT",
   "author": {

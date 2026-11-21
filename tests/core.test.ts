@@ -296,7 +296,7 @@ test('one JSONL line with two actions becomes two ordered rows, including after 
   expect((await answerRow($, second.chunks)).result).toBe('alpha\n')
   expect(w.readers.length).toBe(1) // queued action needs no new stdout
   const last = await drain($.turn.step(step({ agentId: 'reloaded', index: 2 })))
-  expect(last.result.answer).toBe('done')
+  expect(last.result.answer).toBe('done\n\n[hitch] Amp context: 58.7k tokens.')
   expect(last.result.stopReason).toBe('end_turn')
   expect(w.delegations.at(-1)?.rows).toBe(2)
   expect(w.sent).toEqual([])

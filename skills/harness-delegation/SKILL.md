@@ -24,7 +24,13 @@ The list of agent types is the source of truth. Each hitch agent's description s
 | The user names a harness or a model | That harness. |
 | Work that depends on this conversation | Claude (yourself, or a fork): only a fork carries the context. |
 
-Every hitch harness keeps its conversation, so work that needs several rounds stays with the agent that started it: continue it with SendMessage.
+### Continue or start fresh
+
+Every hitch harness keeps its conversation: SendMessage continues it, and a new Agent call starts an empty one.
+
+- **Continue** when the next round builds on what that agent just did: fixing its own diff, answering its question, another pass at the same change.
+- **Start fresh** for a new chunk whose brief stands alone, and for every review: a reviewer that wrote or watched the work is no second opinion.
+- **Start fresh when the context is full.** Answers can end with a `[hitch] … context:` line. Past 60% full, or past 150k tokens where no window size is given, give the next round to a new agent with a brief that stands alone. A harness that reports no context line: start fresh after about five rounds.
 
 Cost is part of the choice. State the expected cost to the user before a run on a paid plan that looks large.
 

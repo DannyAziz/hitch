@@ -31,6 +31,8 @@ export function parsePi(raw: string, memo: ParserMemo): HarnessEvent {
       usage.cached += u.cacheRead ?? 0
       usage.output += u.output ?? 0
       event.usage = { ...usage }
+      // This message's own counts are the context's fill, not the sum.
+      event.context = { used: (u.input ?? 0) + (u.cacheRead ?? 0) + (u.cacheWrite ?? 0) + (u.output ?? 0) }
     }
     return event
   }

@@ -13,7 +13,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { TurnStepChunk, TurnStepResult } from 'claude-code'
 
-import { settingsFor, typeOf } from '../hooks/core/harness'
+import { contextNote, settingsFor, typeOf } from '../hooks/core/harness'
 import { type HarnessEvent, canResume } from '../hooks/core/types'
 import { type ParserMemo, jsonlEvents } from '../hooks/transports/cli-jsonl'
 import { HARNESSES } from '../hooks/harnesses'
@@ -30,6 +30,13 @@ async function turn($: any, w: World, turnId: string, text: string) {
     await answerRow($, s.chunks)
   }
   return steps
+}
+
+// The closing report, plus the "[hitch] … context:" line when the harness
+// reported its context fullness (persisted on the agent by the turn).
+function expectedAnswer(w: World, label: string, closing: string) {
+  const ctx = (w.store.get(`hitch:agent:${AGENT}`) as { context?: { used: number; size?: number } } | undefined)?.context
+  return ctx ? `${closing}\n\n${contextNote(label, ctx)}` : closing
 }
 
 test('every harness in the table has a recorded fixture', () => {
@@ -54,7 +61,7 @@ for (const a of HARNESSES) {
     }
     const last = steps.at(-1)!
     expect(last.result.stopReason).toBe('end_turn')
-    expect(last.result.answer).toBe(fx.closing)
+    expect(last.result.answer).toBe(expectedAnswer(w, a.label, fx.closing))
     expect(steps.every(s => s.result.usage === null)).toBe(true)
     // Default follow never starts an unrestricted run without consent.
     const decision = w.delegations.at(-1)?.access
@@ -107,7 +114,7 @@ for (const a of HARNESSES) {
       const steps = await turn($, w, 't2', 'and then?')
       expect(w.launches.length).toBe(2)
       if (['cursor', 'pi', 'amp'].includes(a.key)) expect(w.asks.length).toBe(2)
-      expect(steps.at(-1)?.result.answer).toBe(fx.followUpClosing ?? '')
+      expect(steps.at(-1)?.result.answer).toBe(expectedAnswer(w, a.label, fx.followUpClosing ?? ''))
     } else {
       const steps = await turn($, w, 't2', 'and then?')
       expect(w.launches.length).toBe(1)

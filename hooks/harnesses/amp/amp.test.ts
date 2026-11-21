@@ -31,6 +31,19 @@ test('Amp recorded first turn pairs starts and results, reports real output and 
   expect(follow.filter(e => e.usage).at(-1)?.usage).toEqual({ input: 58930, cached: 57491, output: 7 })
 })
 
+test('Amp context is each assistant message\'s own counts; the latest replaces earlier', () => {
+  const memo = {}
+  const events = FIRST.flatMap(line => parseAmp(line, memo))
+  expect(events.filter(e => e.context).map(e => e.context)).toEqual([
+    { used: 58417 }, // 4 + 58254 + 0 + 159
+    { used: 58676 }, // 2 + 261 + 58254 + 159
+    { used: 58708 }, // 2 + 188 + 58515 + 3
+  ])
+  const followMemo = {}
+  const follow = FOLLOW_UP.flatMap(line => parseAmp(line, followMemo))
+  expect(follow.filter(e => e.context).map(e => e.context)).toEqual([{ used: 58937 }]) // 4 + 1435 + 57491 + 7
+})
+
 test('Amp exact start and resume argv put prompts on argv and provide no stdin input', () => {
   const spec = { prompt: 'the prompt', model: 'medium' }
   expect(cli.start(spec)).toEqual({ argv: ['amp', '-x', 'the prompt', '--stream-json', '--no-archive-after-execute', '-m', 'medium'] })
@@ -49,7 +62,7 @@ test('Amp configured mode is overridden by xhigh and the launcher supplies empty
   await $.agent.spawn({ ...spawnInput('hitch:amp'), permissionMode: 'default' })
   await $.turn.start({ text: 'Which file?', turnId: 't1', agentId: AGENT })
   const s = await drain($.turn.step(step()))
-  expect(s.result.answer).toBe('notes.txt')
+  expect(s.result.answer).toBe('notes.txt\n\n[hitch] Amp context: 58.9k tokens.')
   expect(harnessArgv(w.launches[0])).toEqual(['/mock/bin/amp', '-x', 'Which file?', '--stream-json', '--no-archive-after-execute', '-m', 'ultra'])
   expect(w.launches[0]?.cwd).toBe('/repo/worktree')
   expect(w.launches[0]?.argv[4]).toBe('file')

@@ -61,6 +61,14 @@ export function parseAmp(raw: string, memo: ParserMemo): HarnessEvent | HarnessE
       state.usage.cached += u.cache_read_input_tokens ?? 0
       state.usage.output += u.output_tokens ?? 0
       event.usage = { ...state.usage }
+      // This message's own counts are the context's fill, not the sum.
+      event.context = {
+        used:
+          (u.input_tokens ?? 0) +
+          (u.cache_creation_input_tokens ?? 0) +
+          (u.cache_read_input_tokens ?? 0) +
+          (u.output_tokens ?? 0),
+      }
     }
     const text = blocks.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n')
     if (text) event.message = text

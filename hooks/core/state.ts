@@ -35,6 +35,8 @@ export type ActiveRun = {
   // When its output last moved (the idle timeout runs from here).
   lastOutputAt: number
   usage?: Usage
+  // The harness's context fullness after its latest model request.
+  context?: { used: number; size?: number }
   errors?: string[]
   // The ACP client's state (transport 'acp').
   acp?: AcpState
@@ -55,6 +57,9 @@ export type AgentState = {
   sandbox?: string
   turns: number
   tokens: number
+  // The harness's context fullness after its latest model request, kept
+  // across turns (a turn that reports none leaves it).
+  context?: { used: number; size?: number }
   lastAnswer?: string
   run?: ActiveRun
   // Messages that arrived (SendMessage) while a turn ran, for the next one.
@@ -106,6 +111,7 @@ export async function save($: EngineInterface, st: AgentState): Promise<void> {
     ...(st.sandbox && { sandbox: st.sandbox }),
     turns: st.turns,
     tokens: st.tokens,
+    ...(st.context && { context: st.context }),
     ...(st.lastAnswer !== undefined && { lastAnswer: st.lastAnswer.slice(0, 20_000) }),
     ...(st.run && { run: st.run }),
     ...(st.queued?.length && { queued: st.queued }),
