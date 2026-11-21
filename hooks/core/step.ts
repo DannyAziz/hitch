@@ -590,9 +590,12 @@ async function* readStep(
     yield { kind: 'text', index: blocks.at('text'), text: answer }
   }
   // Streamed transports already yielded the report's text: the context
-  // line goes as one more text block (cli-text's is inside `answer`).
+  // line joins that text block (cli-text's is inside `answer`). Claude gets
+  // the last text block only, so when a live line (a hook, say) came after
+  // the report, the line opens a new block that carries the whole report.
   if (ctxNote && run.transport !== 'cli-text') {
-    yield { kind: 'text', index: blocks.at('text'), text: `\n\n${ctxNote}` }
+    const isJoined = blocks.kind === 'text'
+    yield { kind: 'text', index: blocks.at('text'), text: isJoined ? `\n\n${ctxNote}` : answer }
   }
 
   st.lastAnswer = answer

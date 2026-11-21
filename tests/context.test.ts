@@ -69,6 +69,32 @@ test('Devin over ACP: the answer line carries used of size, the row shows ctx %,
   expect(labels.get('hitch:devin')).toContain('ctx 6%')
 })
 
+// The text Claude gets back: the last text block, its chunks joined.
+const lastTextBlock = (chunks: TurnStepChunk[]) => {
+  const texts = chunks.filter(c => c.kind === 'text') as { index: number; text: string }[]
+  const index = texts.at(-1)?.index
+  return texts.filter(c => c.index === index).map(c => c.text).join('')
+}
+
+test('a live line after the report (a Devin hook) still leaves the whole report in the last text block', async ($, on) => {
+  const at = DEVIN_FIRST.findLastIndex(l => l.includes('agent_message_chunk'))
+  const hook =
+    '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"fixture-session","update":{"sessionUpdate":"tool_call","toolCallId":"hook-1","title":"Ran hook: status","_meta":{"cognition.ai/eventType":"hook_execution"}}}}'
+  const w = world(on, [...DEVIN_FIRST.slice(0, at + 1), hook, ...DEVIN_FIRST.slice(at + 1)])
+  await boot($, w, 'hitch:devin')
+  const last = (await turn($, w, 't1', 'the task')).at(-1)!
+  const answer = 'done\n\n[hitch] Devin context: 15.3k of 262.1k tokens (6% full).'
+  expect(last.result.answer).toBe(answer)
+  expect(lastTextBlock(last.chunks).trim()).toBe(answer)
+})
+
+test('without a live line after it, the context line joins the report\'s own text block', async ($, on) => {
+  const w = world(on, DEVIN_FIRST)
+  await boot($, w, 'hitch:devin')
+  const last = (await turn($, w, 't1', 'the task')).at(-1)!
+  expect(lastTextBlock(last.chunks).trim()).toBe('done\n\n[hitch] Devin context: 15.3k of 262.1k tokens (6% full).')
+})
+
 test('Amp: the answer line has no size and the row shows ctx Nk', async ($, on) => {
   const labels = watchRows(on)
   const w = world(on, AMP_FIRST)
