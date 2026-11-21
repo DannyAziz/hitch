@@ -1,0 +1,109 @@
+name: Tester feedback
+description: Tell us how installing and using hitch went, good or bad.
+title: "Feedback: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying hitch. Short answers are fine, and you can skip anything that doesn't apply.
+        Please leave out API keys, tokens and anything private from pasted output.
+  - type: input
+    id: version
+    attributes:
+      label: hitch version
+      description: Run `npx github:DannyAziz/hitch --version`, or look at the top of the installer.
+      placeholder: "0.10.2"
+    validations:
+      required: true
+  - type: input
+    id: claude-code
+    attributes:
+      label: Claude Code version
+      description: Run `claude --version`.
+      placeholder: "2.1.329"
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did you use it?
+      multiple: true
+      options:
+        - Terminal
+        - Desktop app
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 26"
+  - type: dropdown
+    id: permission-mode
+    attributes:
+      label: Claude Code permission mode
+      description: hitch behaves differently in each mode.
+      options:
+        - Default
+        - Accept edits
+        - Auto
+        - Plan
+        - Bypass permissions
+        - Not sure
+  - type: checkboxes
+    id: harnesses
+    attributes:
+      label: Which harnesses did you turn on?
+      options:
+        - label: Codex
+        - label: Cursor
+        - label: Amp
+        - label: pi
+        - label: Devin
+  - type: dropdown
+    id: detection
+    attributes:
+      label: Did the installer find your harnesses correctly?
+      options:
+        - "Yes"
+        - "No, it missed one or got one wrong"
+        - I didn't use the installer
+    validations:
+      required: true
+  - type: textarea
+    id: installer
+    attributes:
+      label: How was the installer?
+      description: Anything that was unclear, wrong or slow. If it missed a harness, say which and how you installed it.
+  - type: dropdown
+    id: first-task
+    attributes:
+      label: Did your first hitch task work?
+      options:
+        - "Yes"
+        - It ran but something was off
+        - "No"
+        - I didn't get that far
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What did you ask for, and what happened?
+      description: The prompt you gave Claude, which harness ran, and what came back. Paste any error text.
+  - type: textarea
+    id: confusing
+    attributes:
+      label: What confused you?
+      description: Permission questions, the agent list, the rows inside an agent, settings, the README. Anything.
+  - type: textarea
+    id: change
+    attributes:
+      label: What would you change?
+  - type: textarea
+    id: hitch-output
+    attributes:
+      label: Output of /hitch (optional)
+      description: In Claude Code, type `/hitch` and paste what it prints. `/hitch log` is welcome too.
+      render: text
