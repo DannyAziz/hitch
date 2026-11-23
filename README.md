@@ -140,7 +140,7 @@ Desktop app sessions may lack your shell PATH: hitch checks PATH, then a non-int
 | `codexCommandTimeoutSec` | 3600 | Stop Codex if one command runs this long. |
 | `cursorEnabled` | on | Off: `hitch:cursor` is not registered as an agent type at all. |
 | `cursorPath` | empty | Explicit path to the Cursor `agent` CLI; skips lookup. |
-| `cursorModel` | `auto` | The model Cursor runs (always passed as `--model`). Cursor encodes effort in model names, so the call's effort is not mapped. |
+| `cursorModel` | `auto` | The model Cursor runs (always passed as `--model`). Cursor encodes effort in model names: when the name ends in a tier (`-low` … `-max`, before any `-fast`), the Agent call's effort swaps it. Other names are passed as set. |
 | `cursorIdleTimeoutSec` | 300 | As for Codex. |
 | `cursorCommandTimeoutSec` | 3600 | As for Codex. |
 | `ampEnabled` | on | Off: `hitch:amp` is not registered as an agent type at all. |
@@ -211,7 +211,7 @@ Devin ACP `follow` maps commands to `Bash`, files to `Read`/`Edit`/`Write`, and 
 
 ## Model names
 
-Each agent type is registered under its harness's own configured model name (`gpt-6-astra`, `swe-2-flash-high`, `openrouter/~deepseek/deepseek-flash-latest`, `cursor-auto`, `amp-medium`), so Claude Code's agent views and transcripts name what really ran. No Claude model runs these agents: if a step ever reached the Anthropic API it would fail on the unknown model name. If Claude Code refuses a name, that type falls back to registering under Haiku. The name is fixed when the session starts, so a call whose effort changes the model (Devin, Amp) still shows the configured one.
+Each agent type is registered under its harness's own configured model name (`gpt-6-astra`, `swe-2-flash-high`, `openrouter/~deepseek/deepseek-flash-latest`, `cursor-auto`, `amp-medium`), so Claude Code's agent views and transcripts name what really ran. No Claude model runs these agents: if a step ever reached the Anthropic API it would fail on the unknown model name. If Claude Code refuses a name, that type falls back to registering under Haiku. The name is fixed when the session starts, so a call whose effort changes the model (Devin, Amp, Cursor) still shows the configured one.
 
 ## Rows
 

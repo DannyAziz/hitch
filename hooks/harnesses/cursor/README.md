@@ -29,9 +29,15 @@ Identifiers, timestamps and account-specific values in the fixture were replaced
   one is the report. The `result` event's `result` string is every assistant
   message joined together, so it is never used as the report.
 - **Access:** see Permissions below. `--trust` is always passed.
-- **Model:** `cursorModel` is passed to `--model` as set (default `auto`).
-  Cursor encodes effort in model names, so the Agent call's `effort` is not
-  mapped to anything.
+- **Model:** `cursorModel` is passed to `--model` (default `auto`).
+- **Effort:** Cursor encodes effort in model names, as the last word or the
+  one before `-fast` (`gemini-4-neon-high`, `gpt-5.6-sol-xhigh-fast`). When
+  `cursorModel` ends in such a tier (`low`, `medium`, `high`, `xhigh`,
+  `max`), the Agent call's effort swaps it. Any other name (`auto`,
+  `composer-2.5`, `gpt-5.5-extra-high`) is passed as set. Not every model
+  has every tier: Cursor rejects a name it does not offer, and the run ends
+  with its error (`agent models` lists the names). The swap is covered by
+  tests on the argv only, not by a live run.
 - **Usage:** the `result` event's token usage (`inputTokens`,
   `cacheReadTokens`, `outputTokens`) is shown in the agent row, `/hitch` and
   the delegation log. It is never reported as Claude usage.

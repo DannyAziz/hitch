@@ -62,7 +62,7 @@
     "cursorModel": {
       "type": "string",
       "title": "Cursor model",
-      "description": "The model hitch:cursor runs (agent --model). Always passed: the Agent tool's model parameter only takes Claude aliases. Cursor encodes effort in model names, so the call's effort is not mapped.",
+      "description": "The model hitch:cursor runs (agent --model). Always passed: the Agent tool's model parameter only takes Claude aliases. Cursor encodes effort in model names: when the name ends in a tier (-low to -max, before any -fast), the call's effort swaps it.",
       "default": "auto"
     },
     "cursorSandbox": {
