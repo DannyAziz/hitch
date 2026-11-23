@@ -5,8 +5,12 @@
 
 import { expect, test } from 'claude-code/testing'
 
+import type { ActiveRun, AgentState } from '../hooks/core/state'
+import { runState } from '../hooks/core/step'
+import type { HarnessEvent } from '../hooks/core/types'
 import { FIRST as AMP_FIRST } from '../hooks/harnesses/amp/fixture'
 import { FIRST, THREAD, fixture } from '../hooks/harnesses/codex/fixture'
+import { FIRST as DEVIN_FIRST } from '../hooks/harnesses/devin/fixture'
 import { AGENT, T0, answerRow, agentInfo, boot, drain, harnessArgv, lines, spawnInput, step, world } from './world'
 
 const TYPE = 'hitch:codex'
@@ -17,6 +21,166 @@ const PONG = lines(
   { type: 'item.completed', item: { id: 'i1', type: 'agent_message', text: 'pong' } },
   { type: 'turn.completed', usage: { input_tokens: 1000, cached_input_tokens: 0, output_tokens: 20 } },
 )
+
+const activeRun = (over: Partial<ActiveRun> = {}): ActiveRun => ({
+  dir: '/scratch/hitch/test/turn-1', supervisor: '4242', transport: 'cli-jsonl',
+  consumed: 0, startedAt: T0, lastOutputAt: T0, label: 'Codex', model: 'gpt-6-astra',
+  rows: 0, promptChars: 1, isFollowUp: false, ...over,
+})
+
+test('runState: starting counts from launch, waiting counts from output, and commands take priority', () => {
+  const run = activeRun({ lastOutputAt: T0 + 30_000 })
+  expect(runState(run, T0 + 41_000)).toBe('starting Codex… 41s')
+  run.isModelSeen = true
+  expect(runState(run, T0 + 41_000)).toBe('waiting on gpt-6-astra… 11s')
+  run.inFlight = { title: 'sleep 90', since: T0 + 35_000 }
+  expect(runState(run, T0 + 41_000)).toBe('running: sleep 90 · 6s')
+  run.isModelSeen = false
+  expect(runState(run, T0 + 41_000)).toBe('running: sleep 90 · 6s')
+})
+
+test('a Codex fixture starts with the harness label, persists its first model event, and stays seen after reload', async ($, on) => {
+  const w = world(on, [
+    ...FIRST.slice(0, 2),
+    { at: T0 + 20_000, stderr: '__hitch_idle__ 20' },
+    { at: T0 + 30_000 },
+    ...FIRST.slice(2),
+  ], fixture.shell)
+  await boot($, w, TYPE)
+  await $.turn.start({ text: 'Patch a.txt', turnId: 't1', agentId: AGENT })
+  const stream = $.turn.step(step())
+  expect((await stream.next()).value).toEqual({
+    kind: 'thinking', index: 0, text: 'access: workspace-write (mode sandbox) · starting Codex…\n',
+  })
+  const launched = (w.store.get(`hitch:agent:${AGENT}`) as AgentState).run!
+  expect(launched.label).toBe('Codex')
+  expect(Boolean(launched.isModelSeen)).toBe(false)
+  expect(runState(launched, T0)).toBe('starting Codex… 0s')
+  // thread.started and turn.started are setup, not model output.
+  expect((await stream.next()).value).toEqual({ kind: 'thinking', index: 0, text: 'starting Codex… 20s\n' })
+  expect(Boolean((w.store.get(`hitch:agent:${AGENT}`) as AgentState).run!.isModelSeen)).toBe(false)
+  expect((await stream.next()).value).toEqual({ kind: 'text', index: 1, text: 'I’ll patch `a.txt`, then run `cat a.txt`.' })
+  const seen = (w.store.get(`hitch:agent:${AGENT}`) as AgentState).run!
+  expect(seen.consumed).toBe(3)
+  expect(seen.isModelSeen).toBe(true)
+  expect(runState(seen, T0 + 30_000)).toBe('waiting on gpt-6-astra… 0s')
+  expect(runState(seen, T0 + 41_000)).toBe('waiting on gpt-6-astra… 11s')
+  const first = await drain(stream)
+  expect(first.result.stopReason).toBe('tool_use')
+  await answerRow($, first.chunks)
+
+  const saved = w.store.get(`hitch:agent:${AGENT}`) as AgentState
+  expect(saved.run!.isModelSeen).toBe(true)
+  w.store.set('hitch:agent:reloaded', { ...saved, agentId: 'reloaded' })
+  w.agents.push(agentInfo('reloaded', TYPE))
+  w.stream = [...FIRST.slice(0, 5), { at: T0 + 60_000, stderr: '__hitch_idle__ 30' }, ...FIRST.slice(5)]
+  const reloaded = $.turn.step(step({ agentId: 'reloaded', index: 1 }))
+  expect((await reloaded.next()).value).toEqual({ kind: 'thinking', index: 0, text: 'waiting on gpt-6-astra… 30s\n' })
+  expect((await drain(reloaded)).result.stopReason).toBe('tool_use')
+  expect(w.launches.length).toBe(1)
+  expect((w.store.get('hitch:agent:reloaded') as AgentState).run!.isModelSeen).toBe(true)
+})
+
+test('a reasoning line is model output: it ends "starting"', async ($, on) => {
+  const reasoning = '{"type":"item.completed","item":{"id":"r0","type":"reasoning","text":"Looking at a.txt"}}'
+  const w = world(on, [...FIRST.slice(0, 2), reasoning, ...FIRST.slice(2)], fixture.shell)
+  await boot($, w, TYPE)
+  await $.turn.start({ text: 'Patch a.txt', turnId: 't1', agentId: AGENT })
+  const stream = $.turn.step(step())
+  await stream.next() // the opening line
+  expect((await stream.next()).value).toEqual({ kind: 'thinking', index: 0, text: '· Looking at a.txt\n' })
+  expect((w.store.get(`hitch:agent:${AGENT}`) as AgentState).run!.isModelSeen).toBe(true)
+  await drain(stream)
+})
+
+test('ACP handshakes stay starting until the Devin fixture produces its first thought', async ($, on) => {
+  const w = world(on, [
+    ...DEVIN_FIRST.slice(0, 3),
+    { at: T0 + 30_000, stderr: '__hitch_idle__ 30' },
+    ...DEVIN_FIRST.slice(3),
+  ])
+  await boot($, w, 'hitch:devin')
+  await $.turn.start({ text: 'Patch notes.txt', turnId: 't1', agentId: AGENT })
+  const stream = $.turn.step(step())
+  await stream.next() // opening
+  expect((await stream.next()).value).toEqual({ kind: 'thinking', index: 0, text: 'starting Devin… 30s\n' })
+  const starting = w.store.get(`hitch:agent:${AGENT}`) as AgentState
+  expect(starting.sessionId).toBe('fixture-session')
+  expect(Boolean(starting.run!.isModelSeen)).toBe(false)
+  expect((await stream.next()).value).toEqual({ kind: 'thinking', index: 0, text: 'Simple task. Write notes.txt, run command.' })
+  const seen = (w.store.get(`hitch:agent:${AGENT}`) as AgentState).run!
+  expect(seen.isModelSeen).toBe(true)
+  expect(seen.consumed).toBe(4)
+  expect(runState(seen, T0 + 30_000)).toBe('waiting on swe-2-flash-high… 0s')
+  await drain(stream)
+})
+
+const firstEvents: [string, HarnessEvent, boolean][] = [
+  ['thought', { thought: 'Thinking.' }, true],
+  ['messageChunk', { messageChunk: 'Hello.' }, true],
+  ['message (even empty)', { message: '' }, true],
+  ['usage (even zero)', { usage: { input: 0, cached: 0, output: 0 } }, true],
+  ['context (even zero)', { context: { used: 0 } }, true],
+  ['started', { started: { title: 'a tool' } }, true],
+  ['action', { action: { kind: 'tool', title: 'a tool', input: {}, output: 'done' } }, true],
+  ['sessionId', { sessionId: THREAD }, false],
+  ['error', { error: 'setup failed' }, false],
+  ['end', { end: { reason: 'error' } }, false],
+  ['line', { line: 'setup progress' }, false],
+]
+
+for (const [name, event, isModelSeen] of firstEvents) {
+  test(`first event ${name}: model seen is ${isModelSeen}`, async ($, on) => {
+    const w = world(on, [])
+    // Pending events exercise the shared event handler through a restored run.
+    w.store.set(`hitch:agent:${AGENT}`, {
+      agentId: AGENT, key: 'codex', model: 'gpt-6-astra', turns: 0, tokens: 0,
+      run: activeRun({ pendingEvents: [event, { line: 'checkpoint' }] }),
+    })
+    await boot($, w, TYPE)
+    const stream = $.turn.step(step())
+    // At the first yield the flag must already be persisted, even before an action.
+    expect((await stream.next()).done).toBe(false)
+    expect(Boolean((w.store.get(`hitch:agent:${AGENT}`) as AgentState).run!.isModelSeen)).toBe(isModelSeen)
+    await drain(stream)
+  })
+}
+
+test('idle timeout after model output keeps the waiting-on-model wording', async ($, on) => {
+  const w = world(on, [
+    ...PONG.slice(0, 2),
+    { at: T0 + 30_000, stderr: '__hitch_idle__ 30' },
+    { at: T0 + 301_000, stderr: '__hitch_idle__ 301' },
+  ])
+  await boot($, w, TYPE)
+  await $.turn.start({ text: 'x', turnId: 't1', agentId: AGENT })
+  const { chunks, result } = await drain($.turn.step(step()))
+  expect(chunks).toContainEqual({ kind: 'thinking', index: 2, text: 'waiting on gpt-6-astra… 30s\n' })
+  expect(result.answer).toContain('Codex produced no output for 301s while waiting on gpt-6-astra, and was stopped (idle timeout 300s).')
+  expect(w.runs).toContainEqual(['kill', '-TERM', '4242'])
+})
+
+test('a SendMessage follow-up starts unseen again despite the previous turn producing output', async ($, on) => {
+  const w = world(on, PONG)
+  await boot($, w, TYPE)
+  await $.turn.start({ text: 'Reply pong', turnId: 't1', agentId: AGENT })
+  expect((await drain($.turn.step(step()))).result.answer).toBe('pong')
+  await $.agent.spawn({ ...spawnInput(TYPE), prompt: 'Again', permissionMode: 'default', resume: { agentId: AGENT } })
+  w.now = T0 + 60_000
+  await $.turn.start({ text: 'Again', turnId: 't2', agentId: AGENT })
+  const stream = $.turn.step(step({ turnId: 't2' }))
+  expect((await stream.next()).value).toEqual({
+    kind: 'thinking', index: 0, text: 'access: workspace-write (mode sandbox) · starting Codex…\n',
+  })
+  const starting = w.store.get(`hitch:agent:${AGENT}`) as AgentState
+  expect(starting.sessionId).toBe(THREAD)
+  expect(starting.run!.isFollowUp).toBe(true)
+  expect(Boolean(starting.run!.isModelSeen)).toBe(false)
+  expect(runState(starting.run!, T0 + 101_000)).toBe('starting Codex… 41s')
+  await stream.next() // first message in this turn
+  expect((w.store.get(`hitch:agent:${AGENT}`) as AgentState).run!.isModelSeen).toBe(true)
+  expect((await drain(stream)).result.answer).toBe('pong')
+})
 
 test('the row tool: deferred with a one-line description everywhere, offered only to its own agents, refused to anyone else', async ($, on) => {
   const w = world(on, FIRST, fixture.shell)
@@ -51,7 +215,7 @@ test('the main loop and other agents still go to Claude', async ($, on) => {
   expect(w.launches).toEqual([])
 })
 
-test('idle timeout: counts only while waiting on the model; the label says "waiting on"', async ($, on) => {
+test('idle timeout before model output: the label and failure say "starting"', async ($, on) => {
   const w = world(on, [
     ...lines({ type: 'thread.started', thread_id: THREAD }),
     { at: T0 + 30_000, stderr: '__hitch_idle__ 30' },
@@ -62,10 +226,9 @@ test('idle timeout: counts only while waiting on the model; the label says "wait
   await $.turn.start({ text: 'x', turnId: 't1', agentId: AGENT })
   const { chunks, result } = await drain($.turn.step(step()))
   const thoughts = chunks.filter(c => c.kind === 'thinking').map(c => (c as { text: string }).text).join('')
-  expect(thoughts).toContain('waiting on gpt-6-astra… 30s')
+  expect(thoughts).toContain('starting Codex… 30s')
   expect(result.stopReason).toBe('end_turn')
-  expect(result.answer).toContain('produced no output for 301s while waiting on gpt-6-astra')
-  expect(result.answer).toContain('idle timeout 300s')
+  expect(result.answer).toContain('Codex produced no output for 301s while starting, and was stopped (idle timeout 300s).')
   expect(result.answer).toContain('SendMessage')
   expect(result.answer).toContain(THREAD)
   expect(w.runs).toContainEqual(['kill', '-TERM', '4242'])
@@ -123,7 +286,7 @@ test('stopping mid-step kills the supervisor', async ($, on) => {
   await boot($, w, TYPE)
   await $.turn.start({ text: 'Run sleep 90', turnId: 't1', agentId: AGENT })
   const stream = $.turn.step(step())
-  await stream.next() // waiting…
+  await stream.next() // starting…
   const live = await stream.next()
   expect((live.value as any).text).toContain('$ sleep 90')
   await stream.return(undefined as never)

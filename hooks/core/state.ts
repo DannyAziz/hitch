@@ -18,7 +18,10 @@ export type ActiveRun = {
   // Complete stdout lines already parsed (remaining events are queued below).
   consumed: number
   startedAt: number
+  label: string
   model: string
+  // Set by the first model event in this run, not by startup traffic.
+  isModelSeen?: boolean
   effort?: Effort
   sandbox?: string
   access?: string

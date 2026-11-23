@@ -1,6 +1,6 @@
 {
   "name": "hitch-installer",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "private": true,
   "type": "module",
   "description": "Build-time sources for bin/hitch.mjs (the hitch installer). Not shipped.",

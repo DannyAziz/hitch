@@ -2,7 +2,7 @@
 
 hitch runs other agent harnesses as native Claude Code subagents. Today those are OpenAI's Codex CLI, Cursor's agent CLI, Amp CLI, pi CLI, and Cognition's Devin CLI.
 
-Claude starts them with the Agent tool like any other subagent type (`hitch:codex`, `hitch:cursor`, `hitch:amp`, `hitch:pi`, `hitch:devin`). They show in the agent list, can be stopped, send a notification when done, and take SendMessage follow-ups. Claude Code owns their loop, but no Claude request is made for their work: each step of the agent is answered by hitch from the harness's own output.
+Claude starts them with the Agent tool like any other subagent type (`hitch:codex`, `hitch:cursor`, `hitch:amp`, `hitch:pi`, `hitch:devin`). They show in the agent list, can be stopped, send a notification when done, and take SendMessage follow-ups (except Devin's older `cli-text` mode, which has neither follow-ups nor rows). Claude Code owns their loop, but no Claude request is made for their work: each step of the agent is answered by hitch from the harness's own output.
 
 ## Supported harnesses
 
@@ -16,31 +16,46 @@ Claude starts them with the Agent tool like any other subagent type (`hitch:code
 
 Each harness has a README in `hooks/harnesses/<name>/` with what works, its quirks, and what it does not support. The harness's CLI must be installed and signed in; hitch does not install or sign in to anything.
 
-hitch needs Claude Code with function-hook plugins (mods), and `/usr/bin/perl`, which runs the small process supervisor. It has been used on macOS only.
-
 ## Install
 
-### The easy way: the installer
+### What you need first
+
+- **Claude Code that loads mods.** hitch is a mod: a Claude Code plugin with code that hooks into Claude Code itself, not only skills and commands. The mod API is in early access and changes between releases. hitch was built and tested on Claude Code 2.1.329, in the terminal and in the desktop app; check yours with `claude --version`. Other versions may not load it.
+- **macOS.** It has only been used there. It needs `/usr/bin/perl`, which macOS ships.
+- **At least one harness CLI, installed and signed in.** hitch does not install or sign in to anything. Check each one you want by running it once yourself: `codex`, `agent` (Cursor), `amp`, `pi`, `devin`.
+- **For the installer: Node.js 20+ (or Bun), and `claude` on your PATH.**
+
+### Install with the installer (recommended)
 
 ```
 npx github:DannyAziz/hitch
 ```
 
-The installer finds the agent CLIs on your machine (Codex, Cursor's `agent`, Amp, pi, Devin), shows a compact report of what it found — version, sign-in status, and how each differs from the version hitch was tested with — then asks which harnesses to use and a few questions about models, access, and who reviews and builds. It installs the plugin and saves your answers as its settings. If hitch is already loaded from a clone it writes the settings to that copy instead of installing a second one. Re-run the installer any time to change the answers.
+This runs the installer straight from this GitHub repository; nothing is published to npm. It finds the agent CLIs on your machine (Codex, Cursor's `agent`, Amp, pi, Devin), shows a compact report of what it found — version, sign-in status, and how each differs from the version hitch was tested with — then asks which harnesses to use and a few questions about models, access, and who reviews and builds. It installs the plugin and saves your answers as its settings. Harnesses you don't pick, including any it didn't find, are turned off. Re-run it any time to change the answers.
 
-It needs Node.js 20+ (or Bun) and `claude` on your PATH. While detecting it only runs read-only probes; the only changes it makes are the `claude plugin` commands it shows you at the review step, and only after you confirm. Useful flags: `--yes` (no prompts), `--dry-run` (run the read-only steps and prompts, print the plan, change nothing), `--update` (update an installed copy first).
+While detecting it only runs read-only probes; the only changes it makes are the `claude plugin` commands it shows you at the review step, and only after you confirm. Useful flags: `--yes` (no prompts), `--dry-run` (run the read-only steps and prompts, print the plan, change nothing), `--update` (update an installed copy first).
 
 Then restart Claude Code. A plugin installed for your user is also loaded by the desktop app's local sessions.
 
-### What you need first
+### Check it works
 
-- **Claude Code with mods.** hitch is a mod (a function-hook plugin). It was built and tested on Claude Code 2.1.329, in the terminal and in the desktop app.
-- **macOS.** It has only been used there. It needs `/usr/bin/perl`, which macOS ships.
-- **At least one harness CLI, installed and signed in.** hitch does not install or sign in to anything. Check each one you want by running it once yourself: `codex`, `agent` (Cursor), `amp`, `pi`, `devin`.
+Type `/hitch` in Claude Code. If the command exists, the mod loaded; if it does not, your Claude Code version is not loading mods. Then ask Claude:
 
-### Install by hand
+```
+Use a hitch:codex subagent to reply with the word pong.
+```
 
-In a Claude Code session:
+You should see a `hitch:codex` agent in the agent list and `pong` come back as its report. Swap in `hitch:pi`, `hitch:cursor`, `hitch:devin` or `hitch:amp` for the harness you have. If a CLI cannot be found, which is common in the desktop app, the agent fails with a message naming the `<key>Path` option to set: see Options for where settings go.
+
+### When a harness asks for access
+
+Outside bypass-permissions mode, pi, Cursor and Amp ask you at the start of each run, including SendMessage follow-ups, before they get full access. You can allow that run, allow that harness for the rest of the session, run it read-only where it supports that, or refuse. Codex runs in its own sandbox and does not ask. Devin checks each edit and command against your session's permissions instead. In plan mode every harness is read-only, and an explicit `<key>Access` setting replaces the question. See Permissions.
+
+### Other ways to install
+
+Use only one way of loading hitch. Two copies loaded at once register the same agent types twice and clash; the installer checks for a loaded clone and writes its settings to that copy instead of installing a second one.
+
+By hand, in a Claude Code session:
 
 ```
 /plugin install hitch --marketplace DannyAziz/hitch
@@ -53,36 +68,20 @@ claude plugin marketplace add DannyAziz/hitch
 claude plugin install hitch@hitch
 ```
 
-Then restart Claude Code. A plugin installed for your user is also loaded by the desktop app's local sessions.
+Installed by hand or from a clone, every harness starts turned on. Turn off the ones you don't have with `<key>Enabled` (see Options), or Claude may pick one and the agent fails because the CLI can't be found.
 
-### Or run it from a clone
+From a clone, for one terminal session:
 
 ```
 git clone https://github.com/DannyAziz/hitch.git
 claude --plugin-dir /path/to/hitch
 ```
 
-That loads it for one terminal session. To load the clone in every session, including the desktop app, name the folder in `CLAUDE_CODE_PLUGIN_DIRS` in the `env` block of `~/.claude/settings.json`:
+To load the clone in every session, including the desktop app, name the folder in `CLAUDE_CODE_PLUGIN_DIRS` in the `env` block of `~/.claude/settings.json`, then quit and reopen the desktop app:
 
 ```json
 { "env": { "CLAUDE_CODE_PLUGIN_DIRS": "~/code/hitch" } }
 ```
-
-Quit and reopen the desktop app after changing it. Use one way of loading hitch, not both.
-
-### Check it works
-
-Ask Claude:
-
-```
-Use a hitch:codex subagent to reply with the word pong.
-```
-
-You should see a `hitch:codex` agent in the agent list and `pong` come back as its report. Swap in `hitch:pi`, `hitch:cursor`, `hitch:devin` or `hitch:amp` for the harness you have. If a CLI cannot be found, the agent fails with a message naming the `<key>Path` option to set.
-
-### The first time it wants to write
-
-Outside bypass-permissions mode, pi, Cursor and Amp ask you once per run before they get full access, with an option to allow that harness for the rest of the session. Codex runs in its own sandbox and does not ask. See Permissions.
 
 ### Update and remove
 
@@ -109,7 +108,7 @@ npm run build
 
 Ask Claude to hand a task to Codex, Cursor, Amp, pi, or Devin, or ask for the agent type by name. The bundled skill `hitch:harness-delegation` gives Claude a rubric: when to hand work off, which harness to pick, how to write a self-contained brief, and how to check what comes back.
 
-- **SendMessage** to a hitch agent continues the harness's own conversation (Codex's or Amp's thread, Cursor's, pi's or Devin's session).
+- **SendMessage** to a hitch agent continues the harness's own conversation (Codex's or Amp's thread, Cursor's, pi's or Devin's session). Devin's `cli-text` mode cannot be continued: start a new agent instead.
 - **Context fullness.** Devin reports how full its context window is, and Amp and pi report the tokens in their latest request. hitch shows it on the agent row (`ctx 60%`, or `ctx 157k` without a window size) and ends each answer with a line such as `[hitch] Devin context: 157k of 262k tokens (60% full).`, so Claude can choose between continuing an agent and starting a fresh one. Codex and Cursor report only per-turn totals and get no context line.
 - **Stop:** stopping the agent (the agent list, Esc, or TaskStop) stops the harness and every process it started.
 - **`/hitch`** lists hitch agents. For each it shows the harness session, turns and tokens, and the engine's own count of Claude usage for that agent, which should say "no requests".
@@ -118,7 +117,17 @@ Ask Claude to hand a task to Codex, Cursor, Amp, pi, or Devin, or ask for the ag
 
 ## Options
 
-Set them in the plugin's config menu, or in settings under `pluginConfigs.hitch`.
+The easiest way to change them is to re-run the installer. To see every option and which are unset, run `claude plugin configure hitch@hitch`. To set them by hand, add them to `~/.claude/settings.json` under `pluginConfigs`, keyed by the plugin's id (`hitch@hitch` when installed from the marketplace, `hitch@inline` when loaded from a clone), then restart Claude Code:
+
+```json
+{
+  "pluginConfigs": {
+    "hitch@hitch": {
+      "options": { "ampEnabled": false, "piPath": "~/.local/bin/pi" }
+    }
+  }
+}
+```
 
 Desktop app sessions may lack your shell PATH: hitch checks PATH, then a non-interactive login shell (including its PATH for the child); `<key>Path` overrides that search with an absolute path (`~` allowed).
 

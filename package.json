@@ -1,6 +1,6 @@
 {
   "name": "hitch",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "description": "Other agent harnesses (Codex, Cursor, Amp, pi, Devin) as native Claude Code subagents, plus a terminal installer (`npx github:DannyAziz/hitch`).",
   "license": "MIT",
   "type": "module",

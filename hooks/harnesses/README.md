@@ -57,8 +57,8 @@ export const myHarness: HarnessAdapter = {
 
 ## What every harness gets without code
 
-- **Native agent:** it shows in the agent list, can be stopped, sends its notification, and takes SendMessage.
-- **Rows:** each action is a row of the shared `HitchLog` tool, labelled with your harness's name.
+- **Native agent:** it shows in the agent list, can be stopped, sends its notification, and takes SendMessage (a `cli-text` harness cannot be continued: each run is a fresh session).
+- **Rows:** each action is a row of the shared `HitchLog` tool, labelled with your harness's name (`cli-jsonl` and `acp` only: a `cli-text` harness has no actions to show).
 - **Timeouts:** an idle timeout that counts only while the harness waits on its model, and a command timeout for one running command.
 - **Stop:** the process tree is killed when the agent is stopped, the session ends, or Claude Code goes away. For ACP, `session/cancel` is sent first.
 - **Delegation log:** one line in it per turn.

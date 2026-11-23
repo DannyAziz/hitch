@@ -40,7 +40,7 @@ test('a Codex turn becomes rows: each action a Codex tool row with its real resu
   expect(s0.result.usage).toBe(null)
   expect(s0.result.toolUses).toEqual([{ name: 'HitchLog', input: { harness: 'codex', kind: 'command', command: 'cat a.txt', exit_code: 0, title: 'cat a.txt' } }])
   expect(s0.result.answer).toContain('I’ll patch')
-  expect(s0.chunks[0]).toEqual({ kind: 'thinking', index: 0, text: 'access: workspace-write (mode sandbox) · waiting on gpt-6-astra…\n' })
+  expect(s0.chunks[0]).toEqual({ kind: 'thinking', index: 0, text: 'access: workspace-write (mode sandbox) · starting Codex…\n' })
   const kinds = s0.chunks.map(c => `${c.kind}${'index' in c ? c.index : ''}`)
   expect(kinds).toEqual(['thinking0', 'text1', 'thinking2', 'tool3', 'input3', 'stop'])
   const r0 = await answerRow($, s0.chunks)

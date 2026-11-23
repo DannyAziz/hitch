@@ -39,7 +39,7 @@ test('cli-text (Devin print mode): devin argv carries the prompt as an element; 
   expect(result.toolUses).toEqual([])
   expect(result.usage).toBe(null)
   const thoughts = chunks.filter(c => c.kind === 'thinking').map(c => (c as { text: string }).text).join('')
-  expect(thoughts).toContain('waiting on swe-2-flash-high…')
+  expect(thoughts).toContain('starting Devin…')
   expect(thoughts).toContain('Patched a.txt and ran the tests: 3 passed.')
   expect(chunks.filter(c => c.kind === 'text').map(c => (c as { text: string }).text)).toEqual([DEVIN_ANSWER])
 

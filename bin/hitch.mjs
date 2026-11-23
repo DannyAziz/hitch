@@ -1606,7 +1606,7 @@ async function promptInstaller({ detection, defaults, preview, dryRun = false })
 }
 
 // src/main.mjs
-var VERSION = false ? "0.10.0" : "0.11.1";
+var VERSION = false ? "0.10.0" : "0.11.2";
 var USAGE = `hitch installer \u2014 sets up the hitch Claude Code plugin
 
 Usage: hitch [--yes] [--dry-run] [--update] [--help] [--version]

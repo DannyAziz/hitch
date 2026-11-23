@@ -21,10 +21,10 @@ import { logFile, runDir, touch } from './util'
 // result (nothing runs again), and the engine asks for the next step.
 // Messages the harness writes are the steps' text. The last step holds only
 // the closing message(s), so the report is clean, and stops with end_turn.
-// Live progress (reasoning, a command starting, "waiting on <model>…",
+// Live progress (reasoning, "starting <harness>…", "waiting on <model>…",
 // "running: <command>") streams as thinking, which is shown and not recorded.
 //
-// Timeouts: the idle timeout counts only while the harness waits on its
+// Timeouts: the idle timeout counts while the harness starts or waits on its
 // model (no command or tool in flight), from its last output; a command or
 // tool in flight has its own, much longer ceiling, from when it started.
 
@@ -80,7 +80,9 @@ const secs = (ms: number) => `${Math.max(0, Math.round(ms / 1000))}s`
 export function runState(run: ActiveRun, now: number): string {
   return run.inFlight
     ? `running: ${run.inFlight.title.slice(0, 60)} · ${secs(now - run.inFlight.since)}`
-    : `waiting on ${run.model}… ${secs(now - run.lastOutputAt)}`
+    : !run.isModelSeen
+      ? `starting ${run.label}… ${secs(now - run.startedAt)}`
+      : `waiting on ${run.model}… ${secs(now - run.lastOutputAt)}`
 }
 
 // User text since the agent's last reply: the turn's own text on its first
@@ -236,6 +238,7 @@ export async function* harnessStep(
     consumed: 0,
     startedAt: now,
     lastOutputAt: now,
+    label: a.label,
     model: st.model,
     ...(st.effort && { effort: st.effort }),
     ...(st.sandbox && { sandbox: st.sandbox }),
@@ -256,9 +259,9 @@ export async function* harnessStep(
     `> ${input}`,
   ])
 
-  // The opening "waiting on" line is yielded inside readStep's cleanup, so a
+  // The opening "starting" line is yielded inside readStep's cleanup, so a
   // stop at that very first yield still stops the harness.
-  return yield* readStep($, e, st, a, settings, signal, new Blocks(), `access: ${chosenAccess} (${access.who}) · waiting on ${st.model}…\n`)
+  return yield* readStep($, e, st, a, settings, signal, new Blocks(), `access: ${chosenAccess} (${access.who}) · starting ${a.label}…\n`)
 }
 
 // Reads the running harness's output from where the last step stopped, up
@@ -274,6 +277,8 @@ async function* readStep(
   opening?: string,
 ): StepGen {
   const run = st.run as ActiveRun
+  // Runs persisted before the label was stored still know their adapter.
+  run.label ??= a.label
   const stepUsage = usageFor(settings, a, run.model)
   const messages: string[] = []
   let current = '' // an ACP message being streamed in chunks
@@ -329,7 +334,7 @@ async function* readStep(
     }
     const quiet = now - run.lastOutputAt
     return quiet >= settings.idleTimeoutSec * 1000
-      ? `${a.label} produced no output for ${secs(quiet)} while waiting on ${run.model}, and was stopped (idle timeout ${settings.idleTimeoutSec}s).`
+      ? `${a.label} produced no output for ${secs(quiet)} while ${run.isModelSeen ? `waiting on ${run.model}` : 'starting'}, and was stopped (idle timeout ${settings.idleTimeoutSec}s).`
       : undefined
   }
   // The reader's own limit is only a backstop: the mod decides.
@@ -342,6 +347,17 @@ async function* readStep(
       if (ev.sessionId && ev.sessionId !== st.sessionId) {
         st.sessionId = ev.sessionId
         await save($, st)
+      }
+      if (!run.isModelSeen && (
+        ev.thought !== undefined || ev.messageChunk !== undefined || ev.message !== undefined ||
+        ev.usage !== undefined || ev.context !== undefined || ev.started !== undefined || ev.action !== undefined ||
+        // Reasoning (·) and plan (☐) lines come from the model too.
+        /^[·☐] /.test(ev.line ?? '')
+      )) {
+        run.isModelSeen = true
+        st.activity = runState(run, await $.clock.now())
+        await save($, st)
+        touch($)
       }
       if (ev.usage) run.usage = ev.usage
       if (ev.context) run.context = ev.context
@@ -441,6 +457,8 @@ async function* readStep(
           run.lastOutputAt = await $.clock.now()
 
           if (run.transport === 'cli-text') {
+            // Plain output is the model's report: the harness has started.
+            if (raw.trim()) run.isModelSeen = true
             plain.push(raw)
             log.push(raw)
             st.activity = raw.slice(0, 80) || st.activity
