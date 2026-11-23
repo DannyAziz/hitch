@@ -28,6 +28,7 @@ export const myHarness: HarnessAdapter = {
   description: '...',         // the line the model reads in its list of agent types
   defaultModel: '...',        // used when mineModel is unset; always passed to the CLI
   agentModel: m => `mine-${m}`, // optional: the name the agent is registered under; default is the model as is
+  models: { argv: ['mine', 'models'], parse }, // optional: lists the model names the CLI accepts; hitch refuses a run of any other before launch
   accessLevels: ['read-only', 'workspace-write'], // least to most permissive
   workspaceSandbox: true,     // only for a real workspace-write sandbox
   defaultSandbox: 'workspace-write', // legacy fallback metadata only

@@ -77,6 +77,11 @@ export type HarnessAdapter = {
   // agent's model. Default: the configured model as is. Give one when the
   // model setting is a bare word that says nothing by itself ("auto", "medium").
   agentModel?(model: string): string
+  // How to list the model names the CLI accepts (argv[0] is the CLI, as in
+  // the transports). Give it for a harness that quietly runs another model
+  // when it is given a name it does not know: hitch then stops a run whose
+  // model is not in the list, before launching it.
+  models?: { argv: string[]; parse(stdout: string): string[] }
   accessLevels: readonly string[]
   workspaceSandbox?: boolean
   defaultSandbox?: string
