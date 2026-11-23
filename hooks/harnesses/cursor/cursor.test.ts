@@ -150,6 +150,27 @@ test('Cursor effort xhigh runs gemini-4-neon-xhigh when cursorModel is gemini-4-
   expect(argv[argv.indexOf('--model') + 1]).toBe('gemini-4-neon-xhigh')
 })
 
+test('a first line "model: <name>" picks the model for the agent, is not sent to Cursor, and holds for the follow-up', async ($, on) => {
+  const w = world(on, PONG)
+  await boot($, w, TYPE)
+  await $.turn.start({ text: 'model: gemini-4-carbon-high\n\nReply pong', turnId: 't1', agentId: AGENT })
+  await drain($.turn.step(step()))
+  expect(harnessArgv(w.launches[0])).toEqual([
+    '/mock/bin/agent', '-p', '--output-format', 'stream-json',
+    '--model', 'gemini-4-carbon-high', '--force', '--trust', 'Reply pong',
+  ])
+  expect((w.store.get(`hitch:agent:${AGENT}`) as any).model).toBe('gemini-4-carbon-high')
+
+  w.stream = FOLLOW_UP
+  await $.agent.spawn({ ...spawnInput(TYPE), prompt: 'Again', permissionMode: 'default', resume: { agentId: AGENT } })
+  await $.turn.start({ text: 'Again', turnId: 't2', agentId: AGENT })
+  await drain($.turn.step(step({ turnId: 't2' })))
+  const argv = harnessArgv(w.launches[1])
+  expect(argv[argv.indexOf('--model') + 1]).toBe('gemini-4-carbon-high')
+  expect(argv.at(-1)).toBe('Again')
+  expect(w.sent).toEqual([])
+})
+
 test('a cursorModel with no tier passes to --model as is whatever the effort; read-only is --mode ask without --force', { options: { cursorModel: 'composer-1', cursorSandbox: 'read-only' } }, async ($, on) => {
   const w = world(on, PONG)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })

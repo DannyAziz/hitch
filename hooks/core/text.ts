@@ -13,3 +13,14 @@ export const printable = (s: string) =>
     .replace(/\x1b[@-_]/g, '')
     .replace(/\t/g, '  ')
     .replace(/[\x00-\x09\x0b-\x1f\x7f]/g, '')
+
+// A prompt may open with a line `model: <name>`: the harness's own name for
+// the model this agent runs from this turn on, in place of `<key>Model`. The
+// line is taken out of what the harness is sent. Only one plain word counts
+// as a name (it becomes one argument to the CLI); any other first line is
+// left in the prompt as text.
+const MODEL_LINE = /^\s*model:[ \t]*([A-Za-z0-9][\w.~/:@\[\]-]*)[ \t]*(?:\n+|$)/i
+export const takeModel = (prompt: string): { model?: string; prompt: string } => {
+  const m = MODEL_LINE.exec(prompt)
+  return m ? { model: m[1]!, prompt: prompt.slice(m[0].length) } : { prompt }
+}

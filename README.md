@@ -209,9 +209,13 @@ Devin ACP `follow` maps commands to `Bash`, files to `Read`/`Edit`/`Write`, and 
 
 `<key>Sandbox` is **deprecated for one release** (the existing Codex, Cursor, pi and Devin options remain declared). When Access is unset or `follow`, a non-default legacy Sandbox value is honored. The old default `workspace-write` does not override `follow`; the legacy non-default `read-only` does. Explicit Access wins. Cursor and pi's former “workspace-write” was unrestricted and is now honestly named `full`.
 
+## Choosing the model for one call
+
+Each harness runs the model its `<key>Model` option names. To run another for one agent, ask Claude for it by name ("use hitch:cursor with gemini-4-carbon-high"). Claude starts that agent's prompt with a line `model: <name>`, which hitch takes out of the prompt and passes to the harness as its model. The name is the harness CLI's own (`agent models`, `devin models`); a name the harness does not know ends the run with the harness's error. The agent keeps that model for its SendMessage follow-ups until one of them names another. Each agent type's description tells Claude its configured model and this line. An Agent call's effort still applies on top where the harness maps it (Devin, Amp, Cursor, pi).
+
 ## Model names
 
-Each agent type is registered under its harness's own configured model name (`gpt-6-astra`, `swe-2-flash-high`, `openrouter/~deepseek/deepseek-flash-latest`, `cursor-auto`, `amp-medium`), so Claude Code's agent views and transcripts name what really ran. No Claude model runs these agents: if a step ever reached the Anthropic API it would fail on the unknown model name. If Claude Code refuses a name, that type falls back to registering under Haiku. The name is fixed when the session starts, so a call whose effort changes the model (Devin, Amp, Cursor) still shows the configured one.
+Each agent type is registered under its harness's own configured model name (`gpt-6-astra`, `swe-2-flash-high`, `openrouter/~deepseek/deepseek-flash-latest`, `cursor-auto`, `amp-medium`), so Claude Code's agent views and transcripts name what really ran. No Claude model runs these agents: if a step ever reached the Anthropic API it would fail on the unknown model name. If Claude Code refuses a name, that type falls back to registering under Haiku. The name is fixed when the session starts, so a call that changes the model (a `model:` line, or effort on Devin, Amp and Cursor) still shows the configured one.
 
 ## Rows
 

@@ -21,7 +21,7 @@ The list of agent types is the source of truth. Each hitch agent's description s
 | --- | --- |
 | Second opinion, review, or debugging of work Claude did | The agent whose description says it is the user's chosen harness for second opinions and reviews. With none marked, ask the user which harness. Ask it for findings, and say in the brief that it must change nothing. |
 | Well-specified build with checks that prove it | The agent whose description says it is the user's chosen harness for well-specified builds. With none marked, ask the user which harness. |
-| The user names a harness or a model | That harness. |
+| The user names a harness or a model | That harness. For a model other than the one its description says it runs, start the prompt with a line `model: <name>`, using the harness's own name for it. |
 | Work that depends on this conversation | Claude (yourself, or a fork): only a fork carries the context. |
 
 ### Continue or start fresh

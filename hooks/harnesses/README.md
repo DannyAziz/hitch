@@ -53,7 +53,7 @@ export const myHarness: HarnessAdapter = {
   - `mode` names the session mode for a sandbox value (`session/set_mode`).
   - `permit` decides explicit access requests only. Under `follow`, the transport defers the request to core/access.ts for the engine check and one-time person prompt. Never answer “always”. Protective mode failures stop before the prompt.
 
-`spec` is `{ prompt, model, effort?, sandbox? }`. `effort` is the Agent call's level (`low` … `max`): map it to the CLI's own levels yourself.
+`spec` is `{ prompt, model, effort?, sandbox? }`. `model` is the `<key>Model` option, or the name from a `model: <name>` first line of the prompt (core takes that line out before `prompt` reaches you). `effort` is the Agent call's level (`low` … `max`): map it to the CLI's own levels yourself.
 
 ## What every harness gets without code
 

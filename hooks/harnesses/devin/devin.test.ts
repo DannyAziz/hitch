@@ -90,6 +90,18 @@ test('cli-text: Devin effort swaps only the free swe-2 suffix; other model names
   expect(w.sent).toEqual([])
 })
 
+test('cli-text: a first line "model: <name>" picks Devin\'s model and is not sent to it', TEXT, async ($, on) => {
+  const w = world(on, DEVIN_STREAM, fixture.shell)
+  await bootDevin($, w)
+  await $.turn.start({ text: 'model: gemini-4-neon\nx', turnId: 't1', agentId: AGENT })
+  await drain($.turn.step(step()))
+  const argv = harnessArgv(w.launches[0])
+  expect(argv[argv.indexOf('--model') + 1]).toBe('gemini-4-neon')
+  expect(argv.at(-1)).toBe('x')
+  expect(argv).not.toContain('swe-2-flash-high')
+  expect(w.sent).toEqual([])
+})
+
 test('cli-text: a SendMessage follow-up is refused: it cannot be continued', TEXT, async ($, on) => {
   const w = world(on, DEVIN_STREAM, fixture.shell)
   await bootDevin($, w)
