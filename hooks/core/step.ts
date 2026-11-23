@@ -351,6 +351,7 @@ async function* readStep(
       if (!run.isModelSeen && (
         ev.thought !== undefined || ev.messageChunk !== undefined || ev.message !== undefined ||
         ev.usage !== undefined || ev.context !== undefined || ev.started !== undefined || ev.action !== undefined ||
+        ev.isPrompted === true ||
         // Reasoning (·) and plan (☐) lines come from the model too.
         /^[·☐] /.test(ev.line ?? '')
       )) {

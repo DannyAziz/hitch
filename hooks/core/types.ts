@@ -48,6 +48,9 @@ export type HarnessEvent = {
   // How full the harness's context window is after its latest model
   // request (replaces earlier values); `size` when the window is known.
   context?: { used: number; size?: number }
+  // The harness has handed the prompt to its model: from here a silence is
+  // the model working, not the harness starting.
+  isPrompted?: boolean
   // The harness's conversation id, to resume it.
   sessionId?: string
   error?: string

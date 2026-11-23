@@ -103,6 +103,8 @@ export function parseCodex(raw: string, _memo: ParserMemo): HarnessEvent {
           return {}
       }
     }
+    case 'turn.started':
+      return { isPrompted: true }
     case 'turn.completed':
       return ev.usage
         ? {

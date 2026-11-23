@@ -40,11 +40,13 @@ test('runState: starting counts from launch, waiting counts from output, and com
 })
 
 test('a Codex fixture starts with the harness label, persists its first model event, and stays seen after reload', async ($, on) => {
+  expect(FIRST[0]).toContain('thread.started')
+  expect(FIRST[1]).toContain('turn.started')
   const w = world(on, [
-    ...FIRST.slice(0, 2),
+    ...FIRST.slice(0, 1),
     { at: T0 + 20_000, stderr: '__hitch_idle__ 20' },
     { at: T0 + 30_000 },
-    ...FIRST.slice(2),
+    ...FIRST.slice(1),
   ], fixture.shell)
   await boot($, w, TYPE)
   await $.turn.start({ text: 'Patch a.txt', turnId: 't1', agentId: AGENT })
@@ -56,12 +58,13 @@ test('a Codex fixture starts with the harness label, persists its first model ev
   expect(launched.label).toBe('Codex')
   expect(Boolean(launched.isModelSeen)).toBe(false)
   expect(runState(launched, T0)).toBe('starting Codex… 0s')
-  // thread.started and turn.started are setup, not model output.
+  // thread.started is setup; turn.started (the prompt reaching the model) ends starting.
   expect((await stream.next()).value).toEqual({ kind: 'thinking', index: 0, text: 'starting Codex… 20s\n' })
   expect(Boolean((w.store.get(`hitch:agent:${AGENT}`) as AgentState).run!.isModelSeen)).toBe(false)
   expect((await stream.next()).value).toEqual({ kind: 'text', index: 1, text: 'I’ll patch `a.txt`, then run `cat a.txt`.' })
   const seen = (w.store.get(`hitch:agent:${AGENT}`) as AgentState).run!
-  expect(seen.consumed).toBe(3)
+  // Saved when turn.started (line 2) ended starting; the message line is read next.
+  expect(seen.consumed).toBe(2)
   expect(seen.isModelSeen).toBe(true)
   expect(runState(seen, T0 + 30_000)).toBe('waiting on gpt-6-astra… 0s')
   expect(runState(seen, T0 + 41_000)).toBe('waiting on gpt-6-astra… 11s')
