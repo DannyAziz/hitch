@@ -140,7 +140,7 @@ Desktop app sessions may lack your shell PATH: hitch checks PATH, then a non-int
 | `codexCommandTimeoutSec` | 3600 | Stop Codex if one command runs this long. |
 | `cursorEnabled` | on | Off: `hitch:cursor` is not registered as an agent type at all. |
 | `cursorPath` | empty | Explicit path to the Cursor `agent` CLI; skips lookup. |
-| `cursorModel` | `auto` | The model Cursor runs (always passed as `--model`). Cursor encodes effort in model names, so the call's effort is not mapped. |
+| `cursorModel` | `auto` | The model Cursor runs (always passed as `--model`). Cursor encodes effort in model names: when the name ends in a tier (`-low` … `-max`, before any `-fast`), the Agent call's effort swaps it. Other names are passed as set. |
 | `cursorIdleTimeoutSec` | 300 | As for Codex. |
 | `cursorCommandTimeoutSec` | 3600 | As for Codex. |
 | `ampEnabled` | on | Off: `hitch:amp` is not registered as an agent type at all. |
@@ -209,9 +209,13 @@ Devin ACP `follow` maps commands to `Bash`, files to `Read`/`Edit`/`Write`, and 
 
 `<key>Sandbox` is **deprecated for one release** (the existing Codex, Cursor, pi and Devin options remain declared). When Access is unset or `follow`, a non-default legacy Sandbox value is honored. The old default `workspace-write` does not override `follow`; the legacy non-default `read-only` does. Explicit Access wins. Cursor and pi's former “workspace-write” was unrestricted and is now honestly named `full`.
 
+## Choosing the model for one call
+
+Each harness runs the model its `<key>Model` option names. To run another for one agent, ask Claude for it by name ("use hitch:cursor with gemini-4-carbon-high"). Claude starts that agent's prompt with a line `model: <name>`, which hitch takes out of the prompt and passes to the harness as its model. The name is the harness CLI's own (`agent models`, `devin models`); a name Cursor does not know ends the run with Cursor's error. Devin would quietly run another model instead, so for Devin hitch first checks the name against `devin models` and stops the run, naming the closest models, when it is not there (if the listing fails, the run goes ahead unchecked). The agent keeps that model for its SendMessage follow-ups until one of them names another. Each agent type's description tells Claude its configured model and this line. An Agent call's effort still applies on top where the harness maps it (Devin, Amp, Cursor, pi).
+
 ## Model names
 
-Each agent type is registered under its harness's own configured model name (`gpt-6-astra`, `swe-2-flash-high`, `openrouter/~deepseek/deepseek-flash-latest`, `cursor-auto`, `amp-medium`), so Claude Code's agent views and transcripts name what really ran. No Claude model runs these agents: if a step ever reached the Anthropic API it would fail on the unknown model name. If Claude Code refuses a name, that type falls back to registering under Haiku. The name is fixed when the session starts, so a call whose effort changes the model (Devin, Amp) still shows the configured one.
+Each agent type is registered under its harness's own configured model name (`gpt-6-astra`, `swe-2-flash-high`, `openrouter/~deepseek/deepseek-flash-latest`, `cursor-auto`, `amp-medium`), so Claude Code's agent views and transcripts name what really ran. No Claude model runs these agents: if a step ever reached the Anthropic API it would fail on the unknown model name. If Claude Code refuses a name, that type falls back to registering under Haiku. The name is fixed when the session starts, so a call that changes the model (a `model:` line, or effort on Devin, Amp and Cursor) still shows the configured one.
 
 ## Rows
 

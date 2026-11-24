@@ -7,7 +7,7 @@ import type { TurnStepChunk, TurnStepResult } from 'claude-code'
 
 import { AGENT, type World, answerRow, agentInfo, drain, harnessArgv, spawnInput, step, world } from '../../../tests/world'
 import { acpHandle, acpOpen } from '../../transports/acp'
-import { devin } from './index'
+import { devin, parseDevinModels } from './index'
 import { FIRST, FOLLOW_UP, SESSION, fixture } from './fixture'
 
 const TEXT = { options: { devinTransport: 'cli-text' } }
@@ -87,6 +87,18 @@ test('cli-text: Devin effort swaps only the free swe-2 suffix; other model names
   const argv = harnessArgv(w.launches[0])
   expect(argv).toContain('swe-2-max')
   expect(argv).not.toContain('swe-2-high')
+  expect(w.sent).toEqual([])
+})
+
+test('cli-text: a first line "model: <name>" picks Devin\'s model and is not sent to it', TEXT, async ($, on) => {
+  const w = world(on, DEVIN_STREAM, fixture.shell)
+  await bootDevin($, w)
+  await $.turn.start({ text: 'model: gemini-4-neon\nx', turnId: 't1', agentId: AGENT })
+  await drain($.turn.step(step()))
+  const argv = harnessArgv(w.launches[0])
+  expect(argv[argv.indexOf('--model') + 1]).toBe('gemini-4-neon')
+  expect(argv.at(-1)).toBe('x')
+  expect(argv).not.toContain('swe-2-flash-high')
   expect(w.sent).toEqual([])
 })
 
@@ -232,4 +244,62 @@ test('ACP stop: session/cancel first, then the supervisor is stopped', async ($,
   expect(w.inWrites.some(m => m.method === 'session/cancel' && m.params.sessionId === SESSION)).toBe(true)
   expect(w.runs.some(r => String(r[2]).includes('sleep 3; kill') && r[4] === '4242')).toBe(true)
   expect(w.delegations.at(-1)?.outcome).toBe('stopped')
+})
+
+// A short `devin models` listing, in the CLI's layout (devin 3000.14).
+const MODELS = [
+  'Available models (56 families)',
+  'SWE-2 Flash (swe-2-flash)',
+  '  swe-2-flash-medium                     SWE-2 Flash Medium  [262K context, Free]',
+  '  swe-2-flash-high                       SWE-2 Flash High  [262K context, Free]',
+  'Gemini 3.8 Flash (gemini-3.8-flash)',
+  '  aliases: gemini',
+  '  gemini-3-8-flash-high                  Gemini 3.8 Flash High  [1.05M context, $0.75 / 1M Input]',
+  'Gemini 4 Carbon (gemini-4-carbon)',
+  '  gemini-4-carbon-high                   Gemini 4 Carbon High  [1.05M context, $2 / 1M Input]',
+  'Gemini 4 Neon (gemini-4-neon)',
+  '  gemini-4-neon-high                     Gemini 4 Neon High  [1.05M context, $3 / 1M Input]',
+  '  gemini-4-neon-xhigh                    Gemini 4 Neon XHigh  [1.05M context, $3 / 1M Input]',
+].join('\n')
+
+test('parseDevinModels reads every model id, alias and family id, and not the header', () => {
+  expect(parseDevinModels(MODELS)).toEqual([
+    'swe-2-flash', 'swe-2-flash-medium', 'swe-2-flash-high',
+    'gemini-3.8-flash', 'gemini', 'gemini-3-8-flash-high',
+    'gemini-4-carbon', 'gemini-4-carbon-high',
+    'gemini-4-neon', 'gemini-4-neon-high', 'gemini-4-neon-xhigh',
+  ])
+})
+
+test('a Devin model it does not list is refused before launch, with the names nearest it', TEXT, async ($, on) => {
+  const w = world(on, DEVIN_STREAM, fixture.shell)
+  w.models = MODELS
+  await bootDevin($, w)
+  await $.turn.start({ text: 'model: gemini-4-neon-max\nx', turnId: 't1', agentId: AGENT })
+  const { result } = await drain($.turn.step(step()))
+  expect(w.launches).toEqual([])
+  expect(result.stopReason).toBe('end_turn')
+  expect(result.answer).toContain('offers no model named "gemini-4-neon-max"')
+  expect(result.answer).toContain('Names it offers that start the same way: gemini-4-neon, gemini-4-neon-high, gemini-4-neon-xhigh.')
+  expect(result.answer).not.toContain('carbon')
+  expect(result.answer).toContain('`devin models` lists them all.')
+  expect(w.sent).toEqual([])
+})
+
+test('a Devin alias it lists launches, after one listing', TEXT, async ($, on) => {
+  const w = world(on, DEVIN_STREAM, fixture.shell)
+  w.models = MODELS
+  await bootDevin($, w)
+  await $.turn.start({ text: 'model: gemini\nx', turnId: 't1', agentId: AGENT })
+  await drain($.turn.step(step()))
+  expect(w.launches.length).toBe(1)
+  expect(w.runs.filter(r => r[1] === 'models').length).toBe(1)
+})
+
+test('with no listing, an unlisted Devin model still launches (the check fails open)', TEXT, async ($, on) => {
+  const w = world(on, DEVIN_STREAM, fixture.shell)
+  await bootDevin($, w)
+  await $.turn.start({ text: 'model: anything-else\nx', turnId: 't1', agentId: AGENT })
+  await drain($.turn.step(step()))
+  expect(w.launches.length).toBe(1)
 })

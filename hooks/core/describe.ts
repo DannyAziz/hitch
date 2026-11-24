@@ -4,7 +4,7 @@
 // `/hitch` status and `/hitch rubric` print the same choices.
 
 import { HARNESSES } from '../harnesses'
-import { enabledFor } from './harness'
+import { enabledFor, settingsFor } from './harness'
 import type { HarnessAdapter } from './types'
 
 type Options = Readonly<Record<string, unknown>>
@@ -44,6 +44,7 @@ export function describeFor(a: HarnessAdapter, options: Options): string {
   const c = choicesFor(options)
   return [
     a.description,
+    `It runs ${settingsFor(a, options).model}; to run another of its models, start the prompt with a line "model: <name>" (the ${a.label} CLI's own name for it).`,
     c.reviewer === a.key && 'The user\'s chosen harness for second opinions and reviews.',
     c.builder === a.key && 'The user\'s chosen harness for well-specified builds.',
     EAGERNESS[c.eagerness],

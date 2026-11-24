@@ -14,6 +14,30 @@ const DEVIN_SUFFIX: Record<Effort, 'medium' | 'high' | 'max'> = {
   max: 'max',
 }
 
+// `devin models`: a family line "Name (id)", then its models indented as
+// "  <id>   <label> [...]", and sometimes "  aliases: a, b". Every id and
+// alias counts as a name. Given a name it does not resolve, `devin acp`
+// logs a warning and runs the configured or default model instead (seen
+// with devin 3000.14), so hitch checks the name before a run.
+export const parseDevinModels = (stdout: string): string[] => {
+  const names: string[] = []
+  for (const line of stdout.split('\n')) {
+    const alias = /^\s+aliases:\s*(.+)$/.exec(line)
+    if (alias) {
+      names.push(...alias[1]!.split(/[,\s]+/).filter(Boolean))
+      continue
+    }
+    const model = /^\s+([a-z0-9][\w.-]*)\s{2,}\S/i.exec(line)
+    if (model) {
+      names.push(model[1]!)
+      continue
+    }
+    const fam = /^\S.*\(([\w.-]+)\)\s*$/.exec(line)
+    if (fam) names.push(fam[1]!)
+  }
+  return names
+}
+
 const devinModel = (spec: LaunchSpec) => {
   if (!spec.effort) return spec.model
   const m = /^swe-2(-flash)?-(medium|high|max)$/.exec(spec.model)
@@ -30,6 +54,7 @@ export const devin: HarnessAdapter = {
   description:
     'Cognition\'s Devin CLI as a subagent: a different model and agent harness, not Claude. Give it a self-contained task: it reads and edits files and runs commands itself in the working directory and returns its final message. Its edits and commands are checked against the session\'s permissions, and in default and auto modes it is read-only; it is not a filesystem sandbox. Continue it with SendMessage; it keeps its Devin session.',
   defaultModel: 'swe-2-flash-high',
+  models: { argv: ['devin', 'models'], parse: parseDevinModels },
   defaultSandbox: 'workspace-write',
   sandboxes: ['workspace-write', 'read-only'],
   accessLevels: ['read-only', 'workspace-write', 'full'],

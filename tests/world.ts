@@ -49,6 +49,8 @@ export type World = {
   // JSON-RPC messages appended to a two-way run's <dir>/in.
   inWrites: any[]
   delegations: any[]
+  // What a harness CLI's model listing (`<cli> models`) prints.
+  models: string
   end: string // stderr line: `__hitch_exit__ code 0`, `__hitch_timeout__ 300`, or '' to hold
   release: () => void
 }
@@ -91,6 +93,7 @@ export function world(on: On, stream: Entry[], shell: Record<string, string> = {
     now: 1_000_000,
     inWrites: [],
     delegations: [],
+    models: '',
     end: '__hitch_exit__ code 0',
     release: () => undefined,
   }
@@ -181,6 +184,7 @@ export function world(on: On, stream: Entry[], shell: Record<string, string> = {
     if (e.argv[1] === '-l') return ok(w.loginLookup)
     if (e.argv[2] === 'command -v "$1"') return ok(w.lookup ?? `/mock/bin/${e.argv[4]}\n`)
     if (e.argv[0] === 'kill') killed()
+    if (e.argv.length === 2 && e.argv[1] === 'models') return ok(w.models)
     const script = String(e.argv[2] ?? '')
     for (const [piece, stdout] of Object.entries(shell)) {
       if (e.argv[0] === '/bin/sh' && script.includes(piece)) return ok(`${stdout}\n`)

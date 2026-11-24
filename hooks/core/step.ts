@@ -9,6 +9,8 @@ import { forgetExecutable, resolveExecutable } from './resolve'
 import { type ActiveRun, type AgentState, HANDBACK, keepRow, save } from './state'
 import { appendArgv, launchArgv, readerArgv, readerSignal } from './supervise'
 import { type HarnessAction, type HarnessAdapter, type HarnessEvent, type Invocation, canResume, isEffort } from './types'
+import { unknownModel } from './models'
+import { takeModel } from './text'
 import { logFile, runDir, touch } from './util'
 
 // One `turn.step` of a hitch agent, answered without `next`: no
@@ -152,8 +154,11 @@ export async function* harnessStep(
     return yield* readStep($, e, st, a, settings, signal, new Blocks())
   }
 
-  const said = await newUserText($, e, true)
-  const input = [...(st.queued ?? []), said].filter(Boolean).join('\n\n')
+  // The call may name the model: a first line `model: <name>`, kept for the
+  // agent's follow-ups too until one of them names another.
+  const picked = takeModel(await newUserText($, e, true))
+  if (picked.model) st.model = picked.model
+  const input = [...(st.queued ?? []), picked.prompt].filter(Boolean).join('\n\n')
   if (!input) return yield* say(e, st.lastAnswer ?? `${a.label} was given no task.`, stepUsage)
 
   const transport = settings.transport
@@ -220,6 +225,8 @@ export async function* harnessStep(
     return yield* say(e, `hitch could not find ${argv[0]}: looked on PATH and in a login shell. Install ${argv[0]} or set the ${a.key}Path option.`, stepUsage)
   }
   argv = [executable.path, ...argv.slice(1)]
+  const refused = await unknownModel($, a, executable, st.model)
+  if (refused) return yield* say(e, refused, stepUsage)
   // env overrides only PATH; the supervisor and its exec child inherit the rest.
   const launched = await $.process
     .run(launchArgv(dir, argv, transport === 'acp' ? 'tail' : 'file'), { ...(cwd && { cwd }), ...(executable.env && { env: executable.env }), timeoutMs: 15_000 })
