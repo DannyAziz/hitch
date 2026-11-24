@@ -38,13 +38,18 @@ export function choicesFor(options: Options): Choices {
   }
 }
 
+// How Claude picks the model: one sentence, the adapter's own if it has one.
+const modelHint = (a: HarnessAdapter, model: string) =>
+  a.modelHint?.(model) ??
+  `It runs ${model}; to run another of its models, start the prompt or a follow-up with a line "model: <name>" (the ${a.label} CLI's own name for it). A model named this way is run as named, whatever the effort.`
+
 // The agent type's description: what the harness is and does, then when to
 // use it — the user's reviewer/builder roles and the eagerness.
 export function describeFor(a: HarnessAdapter, options: Options): string {
   const c = choicesFor(options)
   return [
     a.description,
-    `It runs ${settingsFor(a, options).model}; to run another of its models, start the prompt with a line "model: <name>" (the ${a.label} CLI's own name for it).`,
+    modelHint(a, settingsFor(a, options).model),
     c.reviewer === a.key && 'The user\'s chosen harness for second opinions and reviews.',
     c.builder === a.key && 'The user\'s chosen harness for well-specified builds.',
     EAGERNESS[c.eagerness],

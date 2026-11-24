@@ -11,6 +11,8 @@
 
 import type { AgentInfo, On, TurnStepChunk, TurnStepInput, TurnStepResult } from 'claude-code'
 
+import { forgetListings } from '../hooks/core/models'
+
 export const AGENT = 'a0agent1'
 export const T0 = 1_000_000
 
@@ -74,6 +76,8 @@ export const agentInfo = (id: string, type: string, over: Partial<AgentInfo> = {
 export type Entry = string | { at?: number; stderr?: string }
 
 export function world(on: On, stream: Entry[], shell: Record<string, string> = {}): World {
+  // Model listings are cached per process: each test starts with none.
+  forgetListings()
   const w: World = {
     grants: [],
     checks: [], asks: [], answered: [], verdict: { decision: 'allow' }, answer: 'Allow this run', checkThrows: false, askThrows: false,

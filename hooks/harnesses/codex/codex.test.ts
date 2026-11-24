@@ -108,7 +108,7 @@ test('effort, model and sandbox options reach codex; a worktree cwd is where it 
   await drain($.turn.step(step()))
   const argv = harnessArgv(w.launches[0])
   expect(argv.slice(2, 4)).toEqual(['-m', 'gpt-6.1-sol'])
-  expect(argv).toContain('model_reasoning_effort="xhigh"')
+  expect(argv).toContain('model_reasoning_effort="max"')
   expect(argv).toContain('read-only')
   expect(w.launches[0]?.cwd).toBe('/repo/.claude/worktrees/x')
 })

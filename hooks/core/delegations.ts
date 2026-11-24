@@ -2,7 +2,7 @@ import type { EngineInterface } from 'claude-code'
 
 // ---------------------------------------------------------------- delegation log
 
-export type Outcome = 'done' | 'failed' | 'stopped' | 'timeout'
+export type Outcome = 'done' | 'failed' | 'stopped' | 'timeout' | 'refused'
 
 export type Delegation = {
   ts: string

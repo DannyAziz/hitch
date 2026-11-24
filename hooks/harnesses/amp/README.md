@@ -17,7 +17,7 @@ Identifiers, timestamps and account-specific values in the fixture were replaced
 - A tool use starts the command timer; its matching tool result produces the row. `create_file` shows the path and actual result; `shell_command` shows the command, actual output and exit code. Other individual tools have a generic result row, but were not recorded or live-tested.
 - Assistant text supplies the closing report. The success result repeats it and is ignored to avoid duplicate text.
 - Assistant usage is summed for the turn. Input includes uncached, cache creation, and cache read tokens; cached is the cache read subtotal. Follow-ups reset the totals.
-- `ampModel` (default `medium`) is the Amp agent mode: `low`, `medium`, `high`, or `ultra`, always passed with `-m`. Agent effort overrides it: low/medium/high map directly, xhigh/max map to ultra. This mapping is covered by argv tests; the supplied recordings only show medium.
+- `ampModel` (default `medium`) is what `-m` gets, always passed: an agent mode (`low`, `medium`, `high`, `ultra`, and others Amp offers) or a model as `provider/name` (`openai/gpt-6-astra`). Agent effort takes a configured mode's place: low/medium/high map directly, xhigh/max map to ultra. A `provider/name` model keeps its name and gets the effort as `--effort`. A mode a `model:` line named runs as named. Amp matches modes case-insensitively and exits 1 on one it does not know, listing every valid value. This mapping is covered by argv tests; the supplied recordings only show medium.
 - `ampIdleTimeoutSec` defaults to 300 seconds; `ampCommandTimeoutSec` defaults to 3600 seconds.
 
 ## Permissions and quirks

@@ -2,7 +2,7 @@
 // older `devin -p` print mode (transport cli-text, option devinTransport).
 // See README.md beside this file for what was tested and the quirks.
 
-import type { Effort, HarnessAdapter, LaunchSpec } from '../../core/types'
+import type { Effort, HarnessAdapter } from '../../core/types'
 
 // Effort is part of the model name on the free swe-2(-flash)-* models: the
 // call's effort swaps the suffix. Any other model name is passed as set.
@@ -38,10 +38,12 @@ export const parseDevinModels = (stdout: string): string[] => {
   return names
 }
 
-const devinModel = (spec: LaunchSpec) => {
-  if (!spec.effort) return spec.model
-  const m = /^swe-2(-flash)?-(medium|high|max)$/.exec(spec.model)
-  return m ? `swe-2${m[1] ?? ''}-${DEVIN_SUFFIX[spec.effort]}` : spec.model
+// The swap applies to the configured model only: a name a `model:` line
+// gave runs as named. Core checks the swapped name against the listing.
+export const devinRunModel = (model: string, effort: Effort | undefined, { isPicked }: { isPicked: boolean }) => {
+  if (!effort || isPicked) return { model }
+  const m = /^swe-2(-flash)?-(medium|high|max)$/.exec(model)
+  return { model: m ? `swe-2${m[1] ?? ''}-${DEVIN_SUFFIX[effort]}` : model }
 }
 
 // `devin -p`: --permission-mode auto approves read-only tools only; smart
@@ -54,7 +56,8 @@ export const devin: HarnessAdapter = {
   description:
     'Cognition\'s Devin CLI as a subagent: a different model and agent harness, not Claude. Give it a self-contained task: it reads and edits files and runs commands itself in the working directory and returns its final message. Its edits and commands are checked against the session\'s permissions, and in default and auto modes it is read-only; it is not a filesystem sandbox. Continue it with SendMessage; it keeps its Devin session.',
   defaultModel: 'swe-2-flash-high',
-  models: { argv: ['devin', 'models'], parse: parseDevinModels },
+  models: { argv: ['devin', 'models'], parse: parseDevinModels, why: 'and given one it does not know it would run another model in its place' },
+  runModel: devinRunModel,
   defaultSandbox: 'workspace-write',
   sandboxes: ['workspace-write', 'read-only'],
   accessLevels: ['read-only', 'workspace-write', 'full'],
@@ -64,7 +67,7 @@ export const devin: HarnessAdapter = {
     // Its sessions persist on disk, and `session/load` continues one in a
     // later process (seen with devin 3000.14).
     acp: {
-      argv: spec => ['devin', 'acp', '--process-model', 'in-process', '--model', devinModel(spec)],
+      argv: spec => ['devin', 'acp', '--process-model', 'in-process', '--model', spec.model],
       // Session modes it offers: accept-edits ("Code": workspace edits
       // auto-approved, other commands ask), smart, ask (no write or exec
       // tools at all), plan, bypass.
@@ -76,7 +79,7 @@ export const devin: HarnessAdapter = {
       start: spec => ({
         argv: [
           'devin',
-          '--model', devinModel(spec),
+          '--model', spec.model,
           '--permission-mode', devinPermission(spec.sandbox),
           '--respect-workspace-trust', 'false',
           '-p', spec.prompt,

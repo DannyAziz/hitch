@@ -16,11 +16,20 @@ export const printable = (s: string) =>
 
 // A prompt may open with a line `model: <name>`: the harness's own name for
 // the model this agent runs from this turn on, in place of `<key>Model`. The
-// line is taken out of what the harness is sent. Only one plain word counts
-// as a name (it becomes one argument to the CLI); any other first line is
-// left in the prompt as text.
-const MODEL_LINE = /^\s*model:[ \t]*([A-Za-z0-9][\w.~/:@\[\]-]*)[ \t]*(?:\n+|$)/i
+// line is taken out of what the harness is sent. Only a lowercase `model:`
+// and one plain word count (the word becomes one argument to the CLI, and
+// may carry Cursor's `[key=value,...]` overrides); any other first line,
+// `Model: Invoice` included, is left in the prompt as text.
+const MODEL_LINE = /^[ \t\n]*model:[ \t]*([A-Za-z0-9][\w.~/:@\[\],=-]*)[ \t]*(?:\n+|$)/
 export const takeModel = (prompt: string): { model?: string; prompt: string } => {
-  const m = MODEL_LINE.exec(prompt)
-  return m ? { model: m[1]!, prompt: prompt.slice(m[0].length) } : { prompt }
+  const text = prompt.replace(/\r\n?/g, '\n')
+  const m = MODEL_LINE.exec(text)
+  return m ? { model: m[1]!, prompt: text.slice(m[0].length) } : { prompt: text }
 }
+
+// Claude Code hands a SendMessage to a subagent wrapped in a note for a
+// Claude agent mid-task ("The coordinator sent a message while you were
+// working: ... Address this before completing your current task."). The
+// harness gets the message itself, so a `model:` line in it is its first.
+const WRAPPED = /^\s*The coordinator sent a message while you were working:[ \t]*\n([\s\S]*?)\s*Address this before completing your current task\.?\s*$/
+export const unwrapMessage = (text: string): string => WRAPPED.exec(text)?.[1]?.trim() ?? text

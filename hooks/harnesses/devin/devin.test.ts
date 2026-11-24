@@ -280,7 +280,7 @@ test('a Devin model it does not list is refused before launch, with the names ne
   expect(w.launches).toEqual([])
   expect(result.stopReason).toBe('end_turn')
   expect(result.answer).toContain('offers no model named "gemini-4-neon-max"')
-  expect(result.answer).toContain('Names it offers that start the same way: gemini-4-neon, gemini-4-neon-high, gemini-4-neon-xhigh.')
+  expect(result.answer).toContain('Nearest names it offers: gemini-4-neon, gemini-4-neon-high, gemini-4-neon-xhigh.')
   expect(result.answer).not.toContain('carbon')
   expect(result.answer).toContain('`devin models` lists them all.')
   expect(w.sent).toEqual([])
@@ -302,4 +302,52 @@ test('with no listing, an unlisted Devin model still launches (the check fails o
   await $.turn.start({ text: 'model: anything-else\nx', turnId: 't1', agentId: AGENT })
   await drain($.turn.step(step()))
   expect(w.launches.length).toBe(1)
+})
+
+const devinModelOf = (launch: { argv: readonly string[] } | undefined) => {
+  const argv = harnessArgv(launch)
+  return argv[argv.indexOf('--model') + 1]
+}
+
+test('an effort swap to a name Devin does not list runs the configured name', TEXT, async ($, on) => {
+  const w = world(on, DEVIN_STREAM, fixture.shell)
+  w.models = MODELS
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  w.agents.push(agentInfo(AGENT, DTYPE, { type: DTYPE, effort: 'max' }))
+  await $.agent.spawn({ ...spawnInput(DTYPE), permissionMode: 'default' })
+  await $.turn.start({ text: 'x', turnId: 't1', agentId: AGENT })
+  await drain($.turn.step(step()))
+  // swe-2-flash-max is not in the listing: no unchecked name reaches Devin.
+  expect(devinModelOf(w.launches[0])).toBe('swe-2-flash-high')
+})
+
+test('a swe-2 tier a model: line names runs as named, whatever the effort', TEXT, async ($, on) => {
+  const w = world(on, DEVIN_STREAM, fixture.shell)
+  w.models = MODELS
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  w.agents.push(agentInfo(AGENT, DTYPE, { type: DTYPE, effort: 'low' }))
+  await $.agent.spawn({ ...spawnInput(DTYPE), permissionMode: 'default' })
+  await $.turn.start({ text: 'model: swe-2-flash-high\nx', turnId: 't1', agentId: AGENT })
+  await drain($.turn.step(step()))
+  expect(devinModelOf(w.launches[0])).toBe('swe-2-flash-high')
+  expect(w.delegations.at(-1)?.model).toBe('swe-2-flash-high')
+})
+
+test('a Devin name in other case runs as listed', TEXT, async ($, on) => {
+  const w = world(on, DEVIN_STREAM, fixture.shell)
+  w.models = MODELS
+  await bootDevin($, w)
+  await $.turn.start({ text: 'model: SWE-2-Flash-Medium\nx', turnId: 't1', agentId: AGENT })
+  await drain($.turn.step(step()))
+  expect(devinModelOf(w.launches[0])).toBe('swe-2-flash-medium')
+})
+
+test('a Devin typo is refused naming the model meant first', TEXT, async ($, on) => {
+  const w = world(on, DEVIN_STREAM, fixture.shell)
+  w.models = MODELS
+  await bootDevin($, w)
+  await $.turn.start({ text: 'model: swe-2-flsh-high\nx', turnId: 't1', agentId: AGENT })
+  const { result } = await drain($.turn.step(step()))
+  expect(w.launches).toEqual([])
+  expect(result.answer).toContain('Nearest names it offers: swe-2-flash-high')
 })

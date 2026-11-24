@@ -8,9 +8,9 @@ import { ROW_TOOL, type Settings, contextNote, formatTokens, typeOf } from './ha
 import { forgetExecutable, resolveExecutable } from './resolve'
 import { type ActiveRun, type AgentState, HANDBACK, keepRow, save } from './state'
 import { appendArgv, launchArgv, readerArgv, readerSignal } from './supervise'
-import { type HarnessAction, type HarnessAdapter, type HarnessEvent, type Invocation, canResume, isEffort } from './types'
-import { unknownModel } from './models'
-import { takeModel } from './text'
+import { type HarnessAction, type HarnessAdapter, type HarnessEvent, type Invocation, type LaunchSpec, type Transport, canResume, isEffort } from './types'
+import { listModels, listedName, unknownModelText } from './models'
+import { takeModel, unwrapMessage } from './text'
 import { logFile, runDir, touch } from './util'
 
 // One `turn.step` of a hitch agent, answered without `next`: no
@@ -33,7 +33,7 @@ import { logFile, runDir, touch } from './util'
 type StepGen = AsyncGenerator<TurnStepChunk, TurnStepResult>
 
 const REMINDER = /<system-reminder>[\s\S]*?<\/system-reminder>/g
-const clean = (s: string) => s.replace(REMINDER, '').trim()
+const clean = (s: string) => unwrapMessage(s.replace(REMINDER, '').replace(/\r\n?/g, '\n').trim())
 
 // turnId -> the text its turn.start carried (the Agent prompt, or the
 // message that woke the agent). Filled by register.ts.
@@ -110,7 +110,7 @@ async function newUserText(
   const parts: string[] = []
   for (const row of rows.slice(start)) {
     if (row.role !== 'user') continue
-    if (row.text) parts.push(row.text)
+    if (row.text && clean(row.text)) parts.push(clean(row.text))
     if (withToolResults) for (const r of row.toolResults ?? []) if (r.text) parts.push(r.text)
   }
   return clean(parts.join('\n\n'))
@@ -124,10 +124,66 @@ const result = (
   usage: StepUsage = null,
 ): TurnStepResult => ({ turnId: e.turnId, index: e.index, answer, toolUses, stopReason, usage })
 
+// Messages, oldest first, each of which may open with a `model:` line: the
+// last line names the model; the rest is the harness's input.
+function gather(texts: string[]): { named?: string; input: string } {
+  let named: string | undefined
+  const parts: string[] = []
+  for (const text of texts) {
+    const p = takeModel(text)
+    if (p.model) named = p.model
+    if (p.prompt.trim()) parts.push(p.prompt.trim())
+  }
+  return { ...(named && { named }), input: parts.join('\n\n') }
+}
+
 async function* say(e: TurnStepInput, text: string, usage: StepUsage): StepGen {
   yield { kind: 'text', index: 0, text }
   yield { kind: 'stop', stopReason: 'end_turn', usage }
   return result(e, text, 'end_turn', [], usage)
+}
+
+// The command line a transport builds for `spec` (its first word is the CLI).
+const buildArgv = (a: HarnessAdapter, transport: Transport, spec: LaunchSpec): string[] =>
+  transport === 'acp'
+    ? a.transports.acp!.argv(spec)
+    : transport === 'cli-jsonl'
+      ? jsonlInvocation(a.transports['cli-jsonl']!, spec, undefined).argv
+      : a.transports['cli-text']!.start(spec).argv
+
+// A run stopped before launch over its model: said, and one line in the
+// delegation log, so refusals show there too.
+async function* refusal(
+  $: EngineInterface,
+  e: TurnStepInput,
+  st: AgentState,
+  a: HarnessAdapter,
+  settings: Settings,
+  text: string,
+  model: string,
+  usage: StepUsage,
+): StepGen {
+  await recordDelegation($, settings.delegationLog, {
+    ts: new Date().toISOString(),
+    session: await $.session.id().catch(() => undefined),
+    agentId: st.agentId,
+    harness: a.key,
+    transport: settings.transport,
+    model,
+    effort: st.effort ?? null,
+    sandbox: st.sandbox ?? null,
+    access: null,
+    description: null,
+    promptChars: 0,
+    turn: st.turns > 0 ? 'follow-up' : 'first',
+    durationMs: 0,
+    rows: 0,
+    tokens: null,
+    outcome: 'refused',
+    exitCode: null,
+    exit: 'refused before launch',
+  })
+  return yield* say(e, text, usage)
 }
 
 export async function* harnessStep(
@@ -154,14 +210,38 @@ export async function* harnessStep(
     return yield* readStep($, e, st, a, settings, signal, new Blocks())
   }
 
-  // The call may name the model: a first line `model: <name>`, kept for the
-  // agent's follow-ups too until one of them names another.
-  const picked = takeModel(await newUserText($, e, true))
-  if (picked.model) st.model = picked.model
-  const input = [...(st.queued ?? []), picked.prompt].filter(Boolean).join('\n\n')
-  if (!input) return yield* say(e, st.lastAnswer ?? `${a.label} was given no task.`, stepUsage)
+  // The call may name the model: a first line `model: <name>`, here or in a
+  // message that came while the last run went. It is kept for the agent's
+  // follow-ups, once a run on it got going, until one of them names another.
+  const { named, input } = gather([...(st.queued ?? []), await newUserText($, e, true)])
+  if (!input) {
+    if (!named) return yield* say(e, st.lastAnswer ?? `${a.label} was given no task.`, stepUsage)
+    st.queued = [`model: ${named}`]
+    await save($, st)
+    return yield* say(e, `${a.label} was given no task: the next message to this agent runs on ${named}.`, stepUsage)
+  }
+  return yield* launch($, e, st, a, settings, signal, { input, ...(named && { named }) })
+}
 
+// What a run is asked to do: its input, the model a `model:` line named, and
+// the answer of the run before it in the same turn, when a message queued
+// during that run is answered right after it.
+type Ask = { input: string; named?: string; carry?: string }
+
+// Starts a harness run for `ask` and reads it to its first row or its end.
+async function* launch(
+  $: EngineInterface,
+  e: TurnStepInput,
+  st: AgentState,
+  a: HarnessAdapter,
+  settings: Settings,
+  signal: AbortSignal,
+  ask: Ask,
+): StepGen {
+  const stepUsage = usageFor(settings, a, st.model)
+  const { input } = ask
   const transport = settings.transport
+  const refuse = (text: string, model: string) => refusal($, e, st, a, settings, ask.carry ? `${ask.carry}\n\n${text}` : text, model, stepUsage)
   if (st.turns > 0 && !canResume(a, transport)) {
     return yield* say(
       e,
@@ -183,10 +263,40 @@ export async function* harnessStep(
   if (access.error) return yield* say(e, access.error, stepUsage)
   const chosenAccess = access.level === 'follow' ? (permissionMode === 'acceptEdits' ? 'workspace-write' : 'read-only') : access.level
   st.sandbox = access.level
+
+  // Which model: the one named, else the agent's. A name the harness cannot
+  // run, or one its listing does not offer, stops here, before launch.
+  const isPicked = ask.named !== undefined || st.isModelPicked === true
+  let model = ask.named ?? st.model
+  const bad = a.checkModel?.(model)
+  if (bad) {
+    return yield* refuse(`${a.label} was not started: ${bad}${isPicked ? '' : ` Set the ${a.key}Model option to one.`}`, model)
+  }
+  const cli = buildArgv(a, transport, { prompt: '', model })[0]!
+  const executable = await resolveExecutable($, a.key, cli, settings.path)
+  if (!executable) {
+    return yield* say(e, `hitch could not find ${cli}: looked on PATH and in a login shell. Install ${cli} or set the ${a.key}Path option.`, stepUsage)
+  }
+  let names = await listModels($, a, executable)
+  if (names && !listedName(names, model)) names = await listModels($, a, executable, true)
+  if (names) {
+    const found = listedName(names, model)
+    if (!found) return yield* refuse(unknownModelText(a, model, names), model)
+    model = found
+  }
+  // The name and effort it launches with: an effort may swap a tier in the
+  // name. A swap to a name the listing lacks runs the name as it was.
+  const ran = a.runModel
+    ? a.runModel(model, st.effort, { isPicked, ...(names && { names }) })
+    : { model, ...(st.effort && { effort: st.effort }) }
+  if (names && ran.model !== model) {
+    const found = listedName(names, ran.model)
+    ran.model = found ?? model
+  }
   const spec = {
     prompt: input,
-    model: st.model,
-    ...(st.effort && { effort: st.effort }),
+    model: ran.model,
+    ...(ran.effort && { effort: ran.effort }),
     ...(st.sandbox && { sandbox: st.sandbox }),
   }
 
@@ -220,13 +330,7 @@ export async function* harnessStep(
     await $.fs.write(`${dir}/input`, inv.input ?? '')
   }
 
-  const executable = await resolveExecutable($, a.key, argv[0]!, settings.path)
-  if (!executable) {
-    return yield* say(e, `hitch could not find ${argv[0]}: looked on PATH and in a login shell. Install ${argv[0]} or set the ${a.key}Path option.`, stepUsage)
-  }
   argv = [executable.path, ...argv.slice(1)]
-  const refused = await unknownModel($, a, executable, st.model)
-  if (refused) return yield* say(e, refused, stepUsage)
   // env overrides only PATH; the supervisor and its exec child inherit the rest.
   const launched = await $.process
     .run(launchArgv(dir, argv, transport === 'acp' ? 'tail' : 'file'), { ...(cwd && { cwd }), ...(executable.env && { env: executable.env }), timeoutMs: 15_000 })
@@ -246,7 +350,10 @@ export async function* harnessStep(
     startedAt: now,
     lastOutputAt: now,
     label: a.label,
-    model: st.model,
+    model: ran.model,
+    pick: model,
+    isPicked,
+    ...(ask.carry !== undefined && { carry: ask.carry }),
     ...(st.effort && { effort: st.effort }),
     ...(st.sandbox && { sandbox: st.sandbox }),
     access: chosenAccess,
@@ -601,6 +708,12 @@ async function* readStep(
       if (last) failure += `\n${last}`
     }
   }
+  // The model this run was asked for becomes the agent's once the run got
+  // going on it: a name the harness refused is not kept for follow-ups.
+  if (run.pick && (outcome === 'done' || run.usage || messages.length)) {
+    st.model = run.pick
+    st.isModelPicked = run.isPicked === true
+  }
   // How full the harness's context window is, when it says: one line on
   // the report, so a SendMessage follow-up shows it too. `run.context` is
   // this turn's latest; `st.context` the last one a turn reported.
@@ -608,7 +721,16 @@ async function* readStep(
   const ctxNote = !failure && ctx ? contextNote(a.label, ctx) : undefined
   if (ctxNote) answer = answer ? `${answer}\n\n${ctxNote}` : ctxNote
 
-  if (failure) {
+  // A run that answered a message queued during the one before it in this
+  // turn: the report carries both answers, as one new text block (Claude
+  // gets the last text block only).
+  const carried = run.carry
+  if (carried !== undefined) {
+    if (failure) answer = answer ? `${answer}\n\n${failure}` : failure
+    answer = [carried, answer].filter(Boolean).join('\n\n')
+    yield thinking(`${a.label} answered the message sent while it worked\n`)
+    yield { kind: 'text', index: blocks.at('text'), text: answer }
+  } else if (failure) {
     yield { kind: 'text', index: blocks.at('text'), text: `${messages.length || plain.length ? '\n\n' : ''}${failure}` }
     answer = answer ? `${answer}\n\n${failure}` : failure
   } else if (run.transport === 'cli-text' && answer) {
@@ -619,7 +741,7 @@ async function* readStep(
   // line joins that text block (cli-text's is inside `answer`). Claude gets
   // the last text block only, so when a live line (a hook, say) came after
   // the report, the line opens a new block that carries the whole report.
-  if (ctxNote && run.transport !== 'cli-text') {
+  if (carried === undefined && ctxNote && run.transport !== 'cli-text') {
     const isJoined = blocks.kind === 'text'
     yield { kind: 'text', index: blocks.at('text'), text: isJoined ? `\n\n${ctxNote}` : answer }
   }
@@ -638,6 +760,16 @@ async function* readStep(
   touch($)
   yield thinking(`${summary}\n`)
 
+  // A message sent while this run went: answer it now, in the same turn,
+  // rather than leave it for a follow-up that may never come.
+  if (st.queued?.length && outcome === 'done' && canResume(a, run.transport) && !signal.aborted) {
+    const next = gather(st.queued)
+    if (next.input) {
+      yield thinking(`${a.label} goes on with the message sent while it worked\n`)
+      return yield* launch($, e, st, a, settings, signal, { input: next.input, ...(next.named && { named: next.named }), carry: answer })
+    }
+  }
+
   // Auto mode with the hand-back tool still offered (the server decides auto
   // mode's checks, or tool.offer hooks are passed over): only a hand-back
   // call reaches the parent. End on that call; the engine runs it.
@@ -653,7 +785,7 @@ async function* readStep(
     return result(e, messages.join('\n\n'), 'tool_use', [{ name: HANDBACK, input }], stepUsage)
   }
 
-  if (!messages.length && !failure && !(run.transport === 'cli-text' && answer)) {
+  if (carried === undefined && !messages.length && !failure && !(run.transport === 'cli-text' && answer)) {
     // Nothing was said at all: still end on text, so the report isn't empty.
     answer = `${a.label} finished without a closing message.`
     st.lastAnswer = answer

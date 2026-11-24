@@ -23,7 +23,7 @@ Identifiers, timestamps and account-specific values in the fixture were replaced
 
 `full` is **not a sandbox**. pi has no permission system and runs every tool; no restriction flag is passed. `read-only` passes `--tools read,grep,find,ls`, a tool allowlist, not an OS filesystem sandbox. This mapping is covered by argv tests but **not verified by a real run**.
 
-Agent effort low, medium, high, xhigh and max maps directly to `--thinking <level>`. pi also offers off and minimal, which hitch's Agent effort type does not expose. Explicit thinking flags are covered by argv tests but **not verified by a real run**.
+Agent effort low, medium, high, xhigh and max maps directly to `--thinking <level>`, except for a model a `model:` line named with pi's own `:<level>` suffix, which wins. A model with no `provider/` is refused before launch, saying so. pi also offers off and minimal, which hitch's Agent effort type does not expose. Explicit thinking flags are covered by argv tests but **not verified by a real run**.
 
 The supplied recordings used `--no-context-files`. The harness deliberately omits it so project context files load normally; that context-loading behavior was not live-tested here.
 

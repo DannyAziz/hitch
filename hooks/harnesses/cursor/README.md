@@ -29,15 +29,19 @@ Identifiers, timestamps and account-specific values in the fixture were replaced
   one is the report. The `result` event's `result` string is every assistant
   message joined together, so it is never used as the report.
 - **Access:** see Permissions below. `--trust` is always passed.
-- **Model:** `cursorModel` is passed to `--model` (default `auto`).
+- **Model:** `cursorModel` is passed to `--model` (default `auto`). hitch
+  reads `agent models` (about 1s) once per session and refuses a name it
+  does not list before launch, naming the nearest few: Cursor's own error
+  lists every model, about 300 names. Case is ignored, and a
+  `[key=value,...]` override suffix is not part of the name.
 - **Effort:** Cursor encodes effort in model names, as the last word or the
-  one before `-fast` (`gemini-4-neon-high`, `gpt-5.6-sol-xhigh-fast`). When
-  `cursorModel` ends in such a tier (`low`, `medium`, `high`, `xhigh`,
-  `max`), the Agent call's effort swaps it. Any other name (`auto`,
-  `composer-2.5`, `gpt-5.5-extra-high`) is passed as set. Not every model
-  has every tier: Cursor rejects a name it does not offer, and the run ends
-  with its error (`agent models` lists the names). The swap is covered by
-  tests on the argv only, not by a live run.
+  one before `-fast` (`gemini-4-neon-high`, `gpt-5.6-sol-xhigh-fast`); the
+  medium tier is often the bare name (`gpt-5.3-codex`). The Agent call's
+  effort swaps the tier of `cursorModel` only to a name the listing has, in
+  a family with other tiers. Otherwise (`auto`, `composer-2.5`,
+  `gpt-5.5-extra-high`, which has no `-extra-low`; no listing) the name is
+  passed as set. A name a `model:` line gave is never swapped. The swap is
+  covered by tests against a recorded listing, not by a live run.
 - **Usage:** the `result` event's token usage (`inputTokens`,
   `cacheReadTokens`, `outputTokens`) is shown in the agent row, `/hitch` and
   the delegation log. It is never reported as Claude usage.

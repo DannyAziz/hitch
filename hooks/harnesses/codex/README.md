@@ -15,7 +15,7 @@ Identifiers, timestamps and account-specific values in the fixture were replaced
   - each MCP tool call, with its result;
   - each web search.
 - **Report:** Codex's messages are the steps' text, and the closing message is the report.
-- **Effort:** the Agent call's effort maps to `model_reasoning_effort` (`max` runs as `xhigh`, Codex's highest).
+- **Effort:** the Agent call's effort maps to `model_reasoning_effort` as is. `max` is offered by the GPT-6 and 5.6 models (`~/.codex/models_cache.json`); `gpt-5.5` stops at `xhigh` and errors on `max`.
 - **Access:** see Permissions below.
 - **Usage:** Codex's token usage for the turn is shown in the agent row, `/hitch` and the delegation log. It is never reported as Claude usage.
 
