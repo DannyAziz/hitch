@@ -1,7 +1,7 @@
 import type { HarnessEvent } from '../../core/types'
 import { expect, test } from 'claude-code/testing'
 import { AGENT, agentInfo, spawnInput, drain, harnessArgv, step, world } from '../../../tests/world'
-import { amp } from './index'
+import { amp, ampRunModel } from './index'
 import { FILE, FIRST, FOLLOW_UP, THREAD } from './fixture'
 import { parseAmp } from './parse'
 
@@ -48,11 +48,18 @@ test('Amp exact start and resume argv put prompts on argv and provide no stdin i
   const spec = { prompt: 'the prompt', model: 'medium' }
   expect(cli.start(spec)).toEqual({ argv: ['amp', '-x', 'the prompt', '--stream-json', '--no-archive-after-execute', '-m', 'medium'] })
   expect(cli.resume!({ ...spec, sessionId: THREAD })).toEqual({ argv: ['amp', 'threads', 'continue', THREAD, '-x', 'the prompt', '--stream-json', '--no-archive-after-execute', '-m', 'medium'] })
+  // An effort that reaches the argv is Amp's --effort (for a provider/name model).
+  expect(cli.start({ ...spec, model: 'openai/gpt-6-astra', effort: 'low' }).argv.slice(-4)).toEqual(['-m', 'openai/gpt-6-astra', '--effort', 'low'])
+})
+
+test('Amp effort picks the mode in place of the configured one; a named mode runs as named; a model takes --effort', () => {
   for (const effort of ['low', 'medium', 'high', 'xhigh', 'max'] as const) {
     const mode = effort === 'max' || effort === 'xhigh' ? 'ultra' : effort
-    expect(cli.start({ ...spec, model: 'low', effort }).argv.slice(-2)).toEqual(['-m', mode])
-    expect(cli.resume!({ ...spec, sessionId: THREAD, effort }).argv.slice(-2)).toEqual(['-m', mode])
+    expect(ampRunModel('low', effort, { isPicked: false })).toEqual({ model: mode })
+    expect(ampRunModel('low', effort, { isPicked: true })).toEqual({ model: 'low' })
+    expect(ampRunModel('openai/gpt-6-astra', effort, { isPicked: true })).toEqual({ model: 'openai/gpt-6-astra', effort })
   }
+  expect(ampRunModel('high', undefined, { isPicked: false })).toEqual({ model: 'high' })
 })
 
 test('Amp configured mode is overridden by xhigh and the launcher supplies empty stdin in the agent cwd', { options: { ampModel: 'low' } }, async ($, on) => {

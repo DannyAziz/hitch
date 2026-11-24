@@ -81,7 +81,20 @@ export type HarnessAdapter = {
   // the transports). Give it for a harness that quietly runs another model
   // when it is given a name it does not know: hitch then stops a run whose
   // model is not in the list, before launching it.
-  models?: { argv: string[]; parse(stdout: string): string[] }
+  // `why`, when given, says why a name it does not list is refused rather
+  // than left to the CLI (Devin: it would run another model instead).
+  models?: { argv: string[]; parse(stdout: string): string[]; why?: string }
+  // The model and effort a run is launched with, from the agent's model and
+  // the call's effort. `isPicked`: the model came from a `model:` line, so
+  // it is run as named and effort does not change it. `names`: the CLI's
+  // listing, when it has one and it could be read. Default: both as given.
+  runModel?(model: string, effort: Effort | undefined, ctx: { isPicked: boolean; names?: ReadonlySet<string> }): { model: string; effort?: Effort }
+  // Why a model name cannot be run at all (pi: it needs provider/model), or
+  // undefined. Checked before launch.
+  checkModel?(model: string): string | undefined
+  // The description's sentence on picking a model, in place of the generic
+  // one. `model` is the configured model.
+  modelHint?(model: string): string
   accessLevels: readonly string[]
   workspaceSandbox?: boolean
   defaultSandbox?: string

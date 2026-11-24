@@ -140,12 +140,12 @@ Desktop app sessions may lack your shell PATH: hitch checks PATH, then a non-int
 | `codexCommandTimeoutSec` | 3600 | Stop Codex if one command runs this long. |
 | `cursorEnabled` | on | Off: `hitch:cursor` is not registered as an agent type at all. |
 | `cursorPath` | empty | Explicit path to the Cursor `agent` CLI; skips lookup. |
-| `cursorModel` | `auto` | The model Cursor runs (always passed as `--model`). Cursor encodes effort in model names: when the name ends in a tier (`-low` … `-max`, before any `-fast`), the Agent call's effort swaps it. Other names are passed as set. |
+| `cursorModel` | `auto` | The model Cursor runs (always passed as `--model`). Cursor encodes effort in model names: the Agent call's effort swaps the tier (`-low` … `-max`, before any `-fast`; a bare name is often medium) only to a name `agent models` lists. Otherwise the name is passed as set. |
 | `cursorIdleTimeoutSec` | 300 | As for Codex. |
 | `cursorCommandTimeoutSec` | 3600 | As for Codex. |
 | `ampEnabled` | on | Off: `hitch:amp` is not registered as an agent type at all. |
 | `ampPath` | empty | Explicit path to the amp CLI; skips lookup. |
-| `ampModel` | `medium` | Amp agent mode (`-m`): low, medium, high, ultra; effort overrides it. Amp runs with its own default permissions; hitch does not restrict it. |
+| `ampModel` | `medium` | What Amp's `-m` gets: an agent mode (low, medium, high, ultra), whose place effort takes, or a model as `provider/name`, which keeps its name and takes effort as `--effort`. Amp runs with its own default permissions; hitch does not restrict it. |
 | `ampIdleTimeoutSec` | 300 | Stop Amp if it is silent this long while waiting on its model. |
 | `ampCommandTimeoutSec` | 3600 | Stop Amp if one command or tool runs this long. |
 | `piEnabled` | on | Off: `hitch:pi` is not registered as an agent type at all. |
@@ -155,7 +155,7 @@ Desktop app sessions may lack your shell PATH: hitch checks PATH, then a non-int
 | `piCommandTimeoutSec` | 3600 | As for Codex. |
 | `devinEnabled` | on | Off: `hitch:devin` is not registered as an agent type at all. |
 | `devinPath` | empty | Explicit path to the devin CLI; skips lookup. |
-| `devinModel` | `swe-2-flash-high` | The model Devin runs. For the free `swe-2` models, the Agent call's effort picks the suffix. |
+| `devinModel` | `swe-2-flash-high` | The model Devin runs. For the free `swe-2` models, the Agent call's effort picks the suffix, when `devin models` lists the result. |
 | `devinIdleTimeoutSec` | 600 | As for Codex. |
 | `devinCommandTimeoutSec` | 3600 | As for Codex. |
 | `devinTransport` | `acp` | `acp`, or `cli-text` for the older `devin -p` mode: plain text, no rows, no follow-ups. |
@@ -211,11 +211,17 @@ Devin ACP `follow` maps commands to `Bash`, files to `Read`/`Edit`/`Write`, and 
 
 ## Choosing the model for one call
 
-Each harness runs the model its `<key>Model` option names. To run another for one agent, ask Claude for it by name ("use hitch:cursor with gemini-4-carbon-high"). Claude starts that agent's prompt with a line `model: <name>`, which hitch takes out of the prompt and passes to the harness as its model. The name is the harness CLI's own (`agent models`, `devin models`); a name Cursor does not know ends the run with Cursor's error. Devin would quietly run another model instead, so for Devin hitch first checks the name against `devin models` and stops the run, naming the closest models, when it is not there (if the listing fails, the run goes ahead unchecked). The agent keeps that model for its SendMessage follow-ups until one of them names another. Each agent type's description tells Claude its configured model and this line. An Agent call's effort still applies on top where the harness maps it (Devin, Amp, Cursor, pi).
+Each harness runs the model its `<key>Model` option names. To run another for one agent, ask Claude for it by name ("use hitch:cursor with gemini-4-carbon-high"). Claude starts that agent's prompt, or a SendMessage follow-up, with a line `model: <name>` (lowercase `model:`, one word), which hitch takes out of the text and passes to the harness as its model. The name is the harness CLI's own: `agent models` and `devin models` list them, Amp takes a mode or `provider/name`, pi takes `provider/model`.
+
+Before launch, hitch refuses a name it can tell is wrong and logs the refusal: for Cursor and Devin, one their listing does not have (case aside), naming the nearest few; for pi, one with no provider. Devin would otherwise quietly run another model, and Cursor would answer with its whole model list. If a listing fails, the run goes ahead unchecked, and the listing is not retried for five minutes. Codex, Amp and pi end with their own error on a model they do not offer.
+
+The agent keeps the model for its follow-ups once a run on it got going, until a later message names another; a name that was refused or failed before any answer is not kept. A model named this way runs exactly as named: effort does not swap its tier (Cursor, Devin), replace an Amp mode, or override a pi `:level` suffix. Where effort is a separate setting (Codex's reasoning effort, pi's `--thinking`, Amp's `--effort` for a `provider/name` model), both apply. Effort still swaps the tier of the configured model.
+
+A message sent to an agent while its harness is running is answered as soon as that run ends, in the same turn, and the report carries both answers.
 
 ## Model names
 
-Each agent type is registered under its harness's own configured model name (`gpt-6-astra`, `swe-2-flash-high`, `openrouter/~deepseek/deepseek-flash-latest`, `cursor-auto`, `amp-medium`), so Claude Code's agent views and transcripts name what really ran. No Claude model runs these agents: if a step ever reached the Anthropic API it would fail on the unknown model name. If Claude Code refuses a name, that type falls back to registering under Haiku. The name is fixed when the session starts, so a call that changes the model (a `model:` line, or effort on Devin, Amp and Cursor) still shows the configured one.
+Each agent type is registered under its harness's own configured model name (`gpt-6-astra`, `swe-2-flash-high`, `openrouter/~deepseek/deepseek-flash-latest`, `cursor-auto`, `amp-medium`), so Claude Code's agent views and transcripts name what really ran. No Claude model runs these agents: if a step ever reached the Anthropic API it would fail on the unknown model name. If Claude Code refuses a name, that type falls back to registering under Haiku. The name is fixed when the session starts, so a call that changes the model (a `model:` line, or effort on Devin, Amp and Cursor) still shows the configured one there; the delegation log and the agent's closing summary name the model that ran.
 
 ## Rows
 

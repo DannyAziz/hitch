@@ -28,7 +28,10 @@ export const myHarness: HarnessAdapter = {
   description: '...',         // the line the model reads in its list of agent types
   defaultModel: '...',        // used when mineModel is unset; always passed to the CLI
   agentModel: m => `mine-${m}`, // optional: the name the agent is registered under; default is the model as is
-  models: { argv: ['mine', 'models'], parse }, // optional: lists the model names the CLI accepts; hitch refuses a run of any other before launch
+  models: { argv: ['mine', 'models'], parse, why: '...' }, // optional: lists the model names the CLI accepts; hitch refuses a run of any other before launch
+  runModel: (model, effort, { isPicked, names }) => ({ model, effort }), // optional: the name and effort to launch with, e.g. effort swapping a tier in the name; leave a picked name as is
+  checkModel: model => undefined, // optional: why a name cannot run at all (shape), refused before launch
+  modelHint: model => '...',    // optional: the description's sentence on picking a model
   accessLevels: ['read-only', 'workspace-write'], // least to most permissive
   workspaceSandbox: true,     // only for a real workspace-write sandbox
   defaultSandbox: 'workspace-write', // legacy fallback metadata only
@@ -54,7 +57,7 @@ export const myHarness: HarnessAdapter = {
   - `mode` names the session mode for a sandbox value (`session/set_mode`).
   - `permit` decides explicit access requests only. Under `follow`, the transport defers the request to core/access.ts for the engine check and one-time person prompt. Never answer “always”. Protective mode failures stop before the prompt.
 
-`spec` is `{ prompt, model, effort?, sandbox? }`. `model` is the `<key>Model` option, or the name from a `model: <name>` first line of the prompt (core takes that line out before `prompt` reaches you). `effort` is the Agent call's level (`low` … `max`): map it to the CLI's own levels yourself.
+`spec` is `{ prompt, model, effort?, sandbox? }`. `model` is the name to pass as is: the `<key>Model` option or the name from a `model: <name>` line (core takes that line out before `prompt` reaches you), after `runModel`. `effort` is what `runModel` left (by default the Agent call's level, `low` … `max`): map it to the CLI's own levels yourself.
 
 ## What every harness gets without code
 

@@ -9,7 +9,7 @@ const CODEX_EFFORT: Record<Effort, string> = {
   medium: 'medium',
   high: 'high',
   xhigh: 'xhigh',
-  max: 'xhigh', // Codex has nothing above xhigh
+  max: 'max', // the GPT-6 and 5.6 models; gpt-5.5 stops at xhigh
 }
 
 const codexEffort = (effort: Effort | undefined): string[] =>

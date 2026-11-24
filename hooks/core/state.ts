@@ -19,7 +19,15 @@ export type ActiveRun = {
   consumed: number
   startedAt: number
   label: string
+  // The model the harness was launched with (after any effort swap).
   model: string
+  // The model asked for (named or the agent's), kept by the agent once this
+  // run gets going on it; `isPicked` when a `model:` line named it.
+  pick?: string
+  isPicked?: boolean
+  // The answer of the run before this one in the same turn, reported with
+  // this one's (a message queued during that run).
+  carry?: string
   // Set by the first model event in this run, not by startup traffic.
   isModelSeen?: boolean
   effort?: Effort
@@ -56,6 +64,8 @@ export type AgentState = {
   // The harness's conversation, once its first turn started one.
   sessionId?: string
   model: string
+  // The model came from a `model:` line: effort does not change it.
+  isModelPicked?: boolean
   effort?: Effort
   sandbox?: string
   turns: number
@@ -110,6 +120,7 @@ export async function save($: EngineInterface, st: AgentState): Promise<void> {
     key: st.key,
     ...(st.sessionId && { sessionId: st.sessionId }),
     model: st.model,
+    ...(st.isModelPicked && { isModelPicked: true }),
     ...(st.effort && { effort: st.effort }),
     ...(st.sandbox && { sandbox: st.sandbox }),
     turns: st.turns,

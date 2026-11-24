@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { AGENT, agentInfo, drain, harnessArgv, step, world } from '../../../tests/world'
-import { pi } from './index'
+import { pi, piRunModel } from './index'
 import { ERROR, FIRST, FOLLOW_UP, SESSION } from './fixture'
 import { parsePi } from './parse'
 
@@ -96,4 +96,35 @@ test('pi preserves failed tool output and handles read/edit paths without delta 
     const ev = JSON.parse(line)
     if (ev.type === 'message_update' || ev.type === 'agent_end' || ev.message?.role === 'system') expect(parsePi(line, memo)).toEqual({})
   }
+})
+
+test('pi: a bare model name is refused before launch, saying what pi needs; the next call runs the configured model', async ($, on) => {
+  const w = world(on, FOLLOW_UP)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  w.agents.push(agentInfo(AGENT, 'hitch:pi'))
+  await $.turn.start({ text: 'model: gemini-2.5-flash-lite\n\nWhich file?', turnId: 't1', agentId: AGENT })
+  const { result } = await drain($.turn.step(step()))
+  expect(w.launches).toEqual([])
+  expect(result.answer).toBe('pi was not started: pi needs a model as provider/model (openrouter/google/gemini-2.5-flash-lite), and "gemini-2.5-flash-lite" names no provider.')
+  expect(result.answer).not.toContain('piModel')
+  expect(w.delegations.at(-1)?.outcome).toBe('refused')
+
+  await $.turn.start({ text: 'Which file?', turnId: 't2', agentId: AGENT })
+  await drain($.turn.step(step({ turnId: 't2' })))
+  expect(harnessArgv(w.launches[0]).slice(0, 8)).toEqual(['/mock/bin/pi', ...base.slice(1)])
+})
+
+test('pi: a misconfigured piModel is refused naming the option', { options: { piModel: 'deepseek-flash' } }, async ($, on) => {
+  const w = world(on, FOLLOW_UP)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  w.agents.push(agentInfo(AGENT, 'hitch:pi'))
+  await $.turn.start({ text: 'x', turnId: 't1', agentId: AGENT })
+  const { result } = await drain($.turn.step(step()))
+  expect(result.answer).toContain('Set the piModel option to one.')
+})
+
+test('pi: a thinking level a model: line names beats the call\'s effort; else effort is --thinking', () => {
+  expect(piRunModel('openrouter/x:low', 'high', { isPicked: true })).toEqual({ model: 'openrouter/x:low' })
+  expect(piRunModel('openrouter/x', 'high', { isPicked: true })).toEqual({ model: 'openrouter/x', effort: 'high' })
+  expect(piRunModel('openrouter/x:low', 'high', { isPicked: false })).toEqual({ model: 'openrouter/x:low', effort: 'high' })
 })

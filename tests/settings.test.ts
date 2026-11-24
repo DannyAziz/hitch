@@ -33,7 +33,7 @@ test('defaults: the ask-only sentence on every description, no role or other eag
   for (const d of descriptions(w)) {
     expect(d).toContain(ASK_ONLY)
     // Each names its configured model and how a call picks another.
-    expect(d).toContain('start the prompt with a line "model: <name>"')
+    expect(d).toMatch(/start the prompt or a follow-up with a line "model: <[\w/<>]+>"/)
     for (const s of [RUBRIC, EAGER, REVIEWER, BUILDER]) {
       expect(d).not.toContain(s)
     }
